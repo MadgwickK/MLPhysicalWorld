@@ -52,3 +52,25 @@ def mean_function_with_planet(t,M,d_L,d_S,v_T,M_p,r_P,u_min=1,t_0=0):
     star_mag = mean_function(t,M,d_L,d_S,v_T,u_min,t_0)
     planet_mag = mean_function(t,M_pnew,d_L,d_S,v_T,u_min,t_0=t_0p)
     return star_mag+planet_mag-1
+
+def mean_function_theta(t,theta,t_0=0):
+    '''t is time in units of days
+    Theta is a tuple of all parameters, in the following order:
+    d_L: Distance to source, units of parsecs
+    d_S: Distance to lens, units of parsecs
+    v_M_ratio: Ratio between transverse velocity of lens and square root of the lens mass. Units of km s^-1 M_sun^-1/2
+    The two variables are degenerate so can't be individually fitted, hence the need for the ratio
+    u_min: Max magnification of object, unitless
+    t_0 is a variable we will not be fitting over, set it at zero by default'''
+
+    #Adjusting to new units and unpacking theta
+    tnew = t*24*(60**2)
+    t_0new = t_0*24*(60**2)
+    d_L = theta[0]*3.086e16
+    d_S = theta[1]*3.086e16
+    v_M_ratio = theta[2]*1e3/np.sqrt(1.99e30)
+    u_min = theta[3]
+
+    r_E = np.sqrt(4*(6.67e-11)*d_L*(d_S-d_L)/(9e16 * d_S)) #r_E without mass term
+    us = np.sqrt(u_min**2 + (v_M_ratio*(t-t_0)/r_E)**2)
+    return get_mag(us)
