@@ -72,5 +72,5 @@ def mean_function_theta(t,theta,t_0=0):
     u_min = theta[3]
 
     r_E = np.sqrt(4*(6.67e-11)*d_L*(d_S-d_L)/(9e16 * d_S)) #r_E without mass term
-    us = np.sqrt(u_min**2 + (v_M_ratio*(t-t_0)/r_E)**2)
+    us = np.sqrt(u_min**2 + (v_M_ratio*(tnew-t_0new)/r_E)**2)
     return get_mag(us)
