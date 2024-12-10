@@ -74,3 +74,17 @@ def mean_function_theta(t,theta,t_0=0):
     r_E = np.sqrt(4*(6.67e-11)*d_L*(d_S-d_L)/(9e16 * d_S)) #r_E without mass term
     us = np.sqrt(u_min**2 + (v_M_ratio*(tnew-t_0new)/r_E)**2)
     return get_mag(us)
+
+def noisy_data_calc(low,upper,theta,noise,number,t_0=0):
+    '''Generates a noisy lightcurve specified using the given parameters. Returns randomly selected t values and
+    their corresponding magnification.
+    low: Lower time bound of the dataset, in units of days. Must be negative
+    upper: Upper time bound of the dataset, in units of days. Must be positive
+    theta: Parameters of the lightcurve model - d_L, D_S, v_M_ratio, u_min
+    noise: Standard deviation of the gaussian distribution from which noise is sampled
+    number: Number of samples to be selected.
+    t_0: Peak of lightcurve. Default 0'''
+
+    ts = np.random.uniform(low,upper,number)
+    mags = mean_function_theta(ts,theta,t_0) + np.random.normal(0,noise,number)
+    return ts, mags
