@@ -40,13 +40,15 @@ class GaussianProcess:
         L (ndarray): Cholesky decomposition of the training covariance matrix.
         alpha (ndarray): Precomputed weights for predictions.
     """
-    def __init__(self, kernel, sigma_l, sigma_f):
+    def __init__(self, kernel, sigma_l, sigma_f, mean_function=None):
         self.x_train = None
         self.y_train = None
 
         self.kernel = kernel
         self.sigma_l = sigma_l
         self.sigma_f = sigma_f
+        self.mean_function = mean_function if mean_function is not None \
+            else lambda x: np.zeros(x.shape[0])
 
         self.L = None
         self.alpha = None
@@ -55,11 +57,14 @@ class GaussianProcess:
         """
         Fits the Gaussian Process.
         Args:
-            x_train: training data points.
-            y_train: f(x_train).
+            x_train (ndarray): training data points.
+            y_train (ndarray): f(x_train).
         """
         self.x_train = x_train
         self.y_train = y_train
+
+        # Apply the mean function to the training data
+        mean_train = self.mean_function(x_train)
 
         # Covariance matrix for x_train
         K = self.kernel(x_train, x_train, self.sigma_f, self.sigma_l)
@@ -68,17 +73,17 @@ class GaussianProcess:
         self.L = np.linalg.cholesky(K)
 
         # Solve for alpha
-        self.alpha = np.linalg.solve(self.L.T, np.linalg.solve(self.L, y_train))
+        self.alpha = np.linalg.solve(self.L.T, np.linalg.solve(self.L, y_train - mean_train))
 
     def predict(self, x_test):
         """
-
+        Calculates the mean and covariance matrix of given points.
         Args:
-            x_test: testing data points.
+            x_test (ndarray): testing data points.
 
         Returns:
-            mu_s: Predicted mean.
-            cov_s: Predicted covariance matrix.
+            mu_s (float): Predicted mean.
+            cov_s (ndarray): Predicted covariance matrix.
         """
         # Covariance matrix between the training and testing data points.
         K_s = self.kernel(self.x_train, x_test, self.sigma_f, self.sigma_l)
@@ -86,7 +91,8 @@ class GaussianProcess:
         # Covariance matrix for the test data.
         K_ss = self.kernel(x_test, x_test, self.sigma_f, self.sigma_l)
 
-        mu_s = K_s.T.dot(self.alpha)
+        mean_test = self.mean_function(x_test)
+        mu_s = mean_test + K_s.T.dot(self.alpha)
 
         var = np.linalg.solve(self.L, K_s)
         cov_s = K_ss - var.T.dot(var)
