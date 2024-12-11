@@ -3,8 +3,12 @@ Implementation of Bayesian optimisation.
 """
 import numpy as np
 from sklearn.metrics import mean_squared_error
-from scipy.stats import norm, qmc
+from scipy.stats import norm
 import matplotlib.pyplot as plt
+import time
+from itertools import accumulate
+import samplers as samp
+
 from lensmodel import mean_function_theta
 from gaussian_process import GaussianProcess, matern52_kernel
 
@@ -72,120 +76,47 @@ class BayesianOptimisation:
     """
     Bayesian Optimisation class.
 
-    This class implements bayesian optimisation with user deined surrogate, acquisition and
-    objective functions, as well as user defined hyperparameters.
+    This class implements bayesian optimisation with user deined surrogate, acquisition, sampling,
+    and objective functions, as well as user defined hyperparameters.
 
     Attributes:
         surrogate (class): Surrogate model.
         acquisition (function): Acquisition function.
         objective (function): Objective function.
+        sampler (function): Sampler function.
         bounds (dict): Parameter bounds.
-        iteration_n (int): Number of iterations.
         x_obs (ndarray): Observed data.
         y_obs (ndarray): Observed data.
+        iteration_n (int): Number of iterations.
         x_samples (ndarray): Previously sampled points.
         y_samples (ndarray): Previously sampled points.
         current_best_index (int): Index of the current best point in the x and y sample arrays.
     """
-    def __init__(self, surrogate, acquisition, objective, bounds, iteration_n):
+    def __init__(self, surrogate, acquisition, objective, sampler, bounds):
         self.surrogate = surrogate
         self.acquisition = acquisition
         self.objective = objective
         self.bounds = bounds
-        self.iteration_n = iteration_n
+        self.sampler = sampler
 
         self.x_obs = None
         self.y_obs = None
-        self.x_samples = None
-        self.y_samples = None
-        self.current_best_index = None
+        self.iteration_n = None
 
-    def initial_sampling(self, num_samples=10):
-        """
-        Samples a number of initial parameters to start the bayesian optimisation
-        with some parameter space exploration.
-        Args:
-            num_samples (int): Number of intial samples.
-        """
         bounds_array = np.array(list(self.bounds.values()))
         dim = bounds_array.shape[0]
         self.x_samples = np.empty((0, dim))
         self.y_samples = np.empty((0, 1))
-        for _ in range(num_samples):
-
-            # Array for our sample values
-            sample = []
-
-            # Array to store d_L and d_S
-            param_values = {
-                'd_L': self.bounds['d_L'][0],
-                'd_S': self.bounds['d_S'][1]
-            }
-
-            for param, (lower, upper) in self.bounds.items():
-
-                if param == 'd_L':
-
-                    # Generates two numbers within the bounds of d_S and d_L
-                    num_1 = np.random.uniform(lower, upper)
-                    num_2 = np.random.uniform(self.bounds['d_S'][0], self.bounds['d_S'][1])
-
-                    # Assigns the larger number to d_S and the smaller number to d_L
-                    param_values['d_L'] = np.minimum(num_1, num_2)
-                    param_values['d_S'] = np.maximum(num_1, num_2)
-                    sample.append(param_values['d_L'])
-
-                elif param == 'd_S':
-
-                    # Appends calculated value for d_S
-                    sample.append(param_values['d_S'])
-
-                else:
-                    sample.append(np.random.uniform(lower, upper))
-
-            # Stores sample to x_samples
-            sample = np.array(sample)
-            self.x_samples = np.vstack((self.x_samples, sample))
-
-            # Calculates the objective at the sample and adds it to the list y_sample
-            y_sample = self.objective(self.x_obs, self.y_obs, sample)
-            self.y_samples = np.append(self.y_samples, y_sample)
-
-    def latin_hypercube_sampling(self, num_samples=100):
-        """
-        Implementation of latin hypercube sampling.
-        Args:
-            num_samples (int): Number of samples.
-
-        Returns:
-            samples (ndarray): Samples.
-        """
-        # Turn directory into array of bounds
-        bounds_array = np.array(list(self.bounds.values()))
-
-        # Sample points from 0 to 1 in 4 dimensions using Latin Hypercube Sampling
-        dim = bounds_array.shape[0]
-        sampler = qmc.LatinHypercube(d=dim)
-        samples = sampler.random(n=num_samples)
-
-        # Scale the samples using the previously defined bounds
-        samples = qmc.scale(samples, bounds_array[:, 0], bounds_array[:, 1])
-
-        # Ensures d_L <= d_S by swapping them
-        for i in range(num_samples):
-            if samples[i, 1] <= samples[i, 0]:
-                samples[i, 0], samples[i, 1] = samples[i, 1], samples[i, 0]
-
-        return samples
+        self.current_best_index = None
 
     def propose_location(self):
         """
-        Proposes a new sample using latin hypercube sampling and the acquisition function.
+        Proposes a new sample with the user defined sampler function and the acquisition function.
         Returns:
             best_candidate (ndarray): Best candidate point.
         """
         # Generate candidates using latin hypercube sampling
-        candidates = self.latin_hypercube_sampling()
+        candidates = self.sampler(self, num_samples=(2 ** 10))
 
         # Calculate the expected improvement of each sample
         exp_imp = self.acquisition(candidates, self.y_samples, self.surrogate)
@@ -219,18 +150,23 @@ class BayesianOptimisation:
         # Update current best
         self.current_best_index = np.argmin(self.y_samples)
 
-    def fit(self, x_obs, y_obs):
+    def fit(self, x_obs, y_obs, iteration_n):
         """
         Runs the bayesian optimisation algorithm for given observations.
         Args:
             x_obs (ndarray): Observed data.
             y_obs (ndarray): Observed data.
+            iteration_n (int): Number of iterations.
         """
         self.x_obs = x_obs
         self.y_obs = y_obs
+        self.iteration_n = iteration_n
 
         # Sample initial points to kickstart optimisation
-        self.initial_sampling()
+        self.x_samples = np.vstack((self.x_samples, self.sampler(self, 10)))
+        for sample in self.x_samples:
+            y_sample = self.objective(self.x_obs, self.y_obs, sample)
+            self.y_samples = np.append(self.y_samples, y_sample)
 
         # Start surrogate model
         self.surrogate.fit(self.x_samples, self.y_samples)
@@ -239,16 +175,34 @@ class BayesianOptimisation:
         for _ in range(self.iteration_n):
             self.update()
 
-    def plot_results(self):
-        plt.plot(range(self.y_samples.shape[0]), self.y_samples)
+    def plot_best_param(self):
+        # Call best found parameters
+        best_parameters = self.x_samples[self.current_best_index]
+
+        # Calculate the magnification function for these best parameters
+        t = np.linspace(-40, 40, 10000)
+        magnification = FUNCTION(t, best_parameters)
+
+        plt.plot(t, magnification, color='blue')
+        plt.scatter(self.x_obs, self.y_obs, color='red')
+        plt.show()
+
+    def regret_plot(self):
+        current_best_losses = list(accumulate(-self.y_samples, max))
+        plt.plot(current_best_losses)
         plt.show()
 
 
+start = time.time()
 
 gp = GaussianProcess(kernel=matern52_kernel, sigma_l=2, sigma_f=1)
 
 optimiser = BayesianOptimisation(surrogate=gp, acquisition=expected_improvement,
-                                 objective=objective_function, bounds=parameter_bounds,
-                                 iteration_n=100)
-optimiser.fit(X, Y)
-optimiser.plot_results()
+                                 objective=objective_function, sampler=samp.sobol_sampling,
+                                 bounds=parameter_bounds)
+optimiser.fit(X, Y, 100)
+end = time.time()
+
+optimiser.regret_plot()
+optimiser.plot_best_param()
+print(end - start)
