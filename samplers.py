@@ -97,13 +97,12 @@ def sobol_sampling(self, num_samples=2 ** 10):
 
     # Sample points from 0 to 1 in 4 dimensions using Sobol sampling
     dim = bounds_array.shape[0]
-    sampler = qmc.Sobol(d=dim)
+    sampler = qmc.Sobol(d=dim, scramble=True)
     samples = sampler.random(n=num_samples)
 
     # Scale the samples using the previously defined bounds
     samples = qmc.scale(samples, bounds_array[:, 0], bounds_array[:, 1])
 
-    # Ensures d_L <= d_S by swapping them
     # Ensures d_L <= d_S by swapping them
     samples = swap(samples, 0, 1)
 
