@@ -20,8 +20,11 @@ parameter_bounds = {
     'u_min':                    [0, 4]      # unitless
 }
 
-XI = 0.5                        # Exploration parameter for expected improvement
-FUNCTION = mean_function_theta  # Function being fit by the parameters
+# Exploration parameter for expected improvement
+XI = 0.5
+
+# Function being fit by the parameters
+FUNCTION = mean_function_theta
 X = np.random.uniform(-30, 30, 20)
 Y = mean_function_theta(X, [70, 400, 100, 1])
 
