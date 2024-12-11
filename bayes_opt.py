@@ -4,22 +4,22 @@ Implementation of Bayesian optimisation.
 import numpy as np
 from sklearn.metrics import mean_squared_error
 from scipy.stats import norm, qmc
+import matplotlib.pyplot as plt
 from lensmodel import mean_function_theta
+from gaussian_process import GaussianProcess, matern52_kernel
 
 
 parameter_bounds = {
-    'd_L':                      [0, 10000],
-    'd_S':                      [0, 10000],
-    'v_M_ratio':                [0, 1000],
-    'u_min':                    [0, 4]
+    'd_L':                      [0, 10000], # In parsecs
+    'd_S':                      [0, 10000], # In parsecs
+    'v_M_ratio':                [0, 1000],  # km s^{-1} (solar mass)^{-1}
+    'u_min':                    [0, 4]      # unitless?
 }
 
-XI = 0.1 # Exploration parameter for expected improvement.
-FUNCTION = mean_function_theta
+XI = 0.1                        # Exploration parameter for expected improvement
+FUNCTION = mean_function_theta  # Function being fit by the parameters
 X = np.random.uniform(-30, 30, 20)
 Y = mean_function_theta(X, [70, 400, 100, 1])
-DATA = np.column_stack((X, Y))
-
 
 def objective_function(x_obs, y_obs, parameters):
     """
@@ -53,7 +53,7 @@ def expected_improvement(candidates, y_samples, surrogate):
     # Current best observation
     y_best = np.min(y_samples)
 
-    # Predict mean and variance at x, making sure to avoid division by zero.
+    # Predict mean and variance at x, making sure to avoid division by zero
     mean, cov = surrogate.predict(candidates)
     sigma = np.sqrt(np.diag(cov))
     sigma = np.maximum(sigma, 1e-9)
@@ -62,7 +62,7 @@ def expected_improvement(candidates, y_samples, surrogate):
     diff = y_best - mean - XI
     Z = diff / sigma
 
-    # Compute expected improvement, making sure it is non-negative.
+    # Compute expected improvement, making sure it is non-negative
     exp_imp = diff * norm.cdf(Z) + sigma * norm.pdf(Z)
     exp_imp = np.maximum(exp_imp, 0.0)
     return exp_imp
@@ -85,7 +85,7 @@ class BayesianOptimisation:
         y_obs (ndarray): Observed data.
         x_samples (ndarray): Previously sampled points.
         y_samples (ndarray): Previously sampled points.
-        current_best (float): Current best point.
+        current_best_index (int): Index of the current best point in the x and y sample arrays.
     """
     def __init__(self, surrogate, acquisition, objective, bounds, iteration_n):
         self.surrogate = surrogate
@@ -96,9 +96,9 @@ class BayesianOptimisation:
 
         self.x_obs = None
         self.y_obs = None
-        self.x_samples = []
-        self.y_samples = []
-        self.current_best = None
+        self.x_samples = None
+        self.y_samples = None
+        self.current_best_index = None
 
     def initial_sampling(self, num_samples=10):
         """
@@ -107,24 +107,49 @@ class BayesianOptimisation:
         Args:
             num_samples (int): Number of intial samples.
         """
+        bounds_array = np.array(list(self.bounds.values()))
+        dim = bounds_array.shape[0]
+        self.x_samples = np.empty((0, dim))
+        self.y_samples = np.empty((0, 1))
         for _ in range(num_samples):
-            # Randomly generates values for all parameters, ensuring d_S >= d_L
-            d_L = np.random.uniform(self.bounds['d_L'][0], self.bounds['d_L'][1])
-            d_S = np.random.uniform(d_L, self.bounds['d_S'][1])
-            v_M_ratio = np.random.uniform(self.bounds['v_M_ratio'][0], self.bounds['v_M_ratio'][1])
-            u_min = np.random.uniform(self.bounds['u_min'][0], self.bounds['u_min'][1])
 
-            # Adds the sample to the list x_samples
-            sample = [d_L, d_S, v_M_ratio, u_min]
+            # Array for our sample values
+            sample = []
+
+            # Array to store d_L and d_S
+            param_values = {
+                'd_L': self.bounds['d_L'][0],
+                'd_S': self.bounds['d_S'][1]
+            }
+
+            for param, (lower, upper) in self.bounds.items():
+
+                if param == 'd_L':
+
+                    # Generates two numbers within the bounds of d_S and d_L
+                    num_1 = np.random.uniform(lower, upper)
+                    num_2 = np.random.uniform(self.bounds['d_S'][0], self.bounds['d_S'][1])
+
+                    # Assigns the larger number to d_S and the smaller number to d_L
+                    param_values['d_L'] = np.minimum(num_1, num_2)
+                    param_values['d_S'] = np.maximum(num_1, num_2)
+                    sample.append(param_values['d_L'])
+
+                elif param == 'd_S':
+
+                    # Appends calculated value for d_S
+                    sample.append(param_values['d_S'])
+
+                else:
+                    sample.append(np.random.uniform(lower, upper))
+
+            # Stores sample to x_samples
+            sample = np.array(sample)
             self.x_samples = np.vstack((self.x_samples, sample))
 
             # Calculates the objective at the sample and adds it to the list y_sample
             y_sample = self.objective(self.x_obs, self.y_obs, sample)
             self.y_samples = np.append(self.y_samples, y_sample)
-
-        # Turns the sample lists into ndarrays
-        self.x_samples = np.array(self.x_samples)
-        self.y_samples = np.array(self.y_samples)
 
     def latin_hypercube_sampling(self, num_samples=100):
         """
@@ -135,7 +160,7 @@ class BayesianOptimisation:
         Returns:
             samples (ndarray): Samples.
         """
-        # Turn directory into array of bounds.
+        # Turn directory into array of bounds
         bounds_array = np.array(list(self.bounds.values()))
 
         # Sample points from 0 to 1 in 4 dimensions using Latin Hypercube Sampling
@@ -192,7 +217,7 @@ class BayesianOptimisation:
         self.surrogate.fit(self.x_samples, self.y_samples)
 
         # Update current best
-        self.current_best = np.min(self.y_samples)
+        self.current_best_index = np.argmin(self.y_samples)
 
     def fit(self, x_obs, y_obs):
         """
@@ -204,9 +229,26 @@ class BayesianOptimisation:
         self.x_obs = x_obs
         self.y_obs = y_obs
 
-        # Samples initial points to kickstart optimisation
+        # Sample initial points to kickstart optimisation
         self.initial_sampling()
 
-        # Runs algorithm for n iterations
+        # Start surrogate model
+        self.surrogate.fit(self.x_samples, self.y_samples)
+
+        # Run algorithm for n iterations
         for _ in range(self.iteration_n):
             self.update()
+
+    def plot_results(self):
+        plt.plot(range(self.y_samples.shape[0]), self.y_samples)
+        plt.show()
+
+
+
+gp = GaussianProcess(kernel=matern52_kernel, sigma_l=2, sigma_f=1)
+
+optimiser = BayesianOptimisation(surrogate=gp, acquisition=expected_improvement,
+                                 objective=objective_function, bounds=parameter_bounds,
+                                 iteration_n=100)
+optimiser.fit(X, Y)
+optimiser.plot_results()
