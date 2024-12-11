@@ -1,5 +1,6 @@
 """
-Different sampling methods for the Bayesian optimisation implementation in bayes_opt.py
+Different sampling methods for the Bayesian optimisation implementation in bayes_opt.py.
+Within all the functions, we swap d_L and d_S if d_S<=d_L.
 """
 import numpy as np
 from scipy.stats import qmc
@@ -107,8 +108,8 @@ def sobol_sampling(self, num_samples=2 ** 10):
     samples = qmc.scale(samples, bounds_array[:, 0], bounds_array[:, 1])
 
     # Ensures d_L <= d_S by swapping them
-    for i in range(num_samples):
-        if samples[i, 1] <= samples[i, 0]:
-            samples[i, 0], samples[i, 1] = samples[i, 1], samples[i, 0]
+    swap_indices = samples[:, 1] <= samples[:, 0]
+    samples[swap_indices, 0], samples[swap_indices, 1] = (samples[swap_indices, 1],
+                                                          samples[swap_indices, 0])
 
     return samples

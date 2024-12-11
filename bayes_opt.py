@@ -7,7 +7,7 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 import time
 from itertools import accumulate
-import samplers as samp
+from samplers import sobol_sampling
 
 from lensmodel import mean_function_theta
 from gaussian_process import GaussianProcess, matern52_kernel
@@ -17,10 +17,10 @@ parameter_bounds = {
     'd_L':                      [0, 10000], # In parsecs
     'd_S':                      [0, 10000], # In parsecs
     'v_M_ratio':                [0, 1000],  # km s^{-1} (solar mass)^{-1}
-    'u_min':                    [0, 4]      # unitless?
+    'u_min':                    [0, 4]      # unitless
 }
 
-XI = 0.1                        # Exploration parameter for expected improvement
+XI = 0.5                        # Exploration parameter for expected improvement
 FUNCTION = mean_function_theta  # Function being fit by the parameters
 X = np.random.uniform(-30, 30, 20)
 Y = mean_function_theta(X, [70, 400, 100, 1])
@@ -115,7 +115,7 @@ class BayesianOptimisation:
         Returns:
             best_candidate (ndarray): Best candidate point.
         """
-        # Generate candidates using latin hypercube sampling
+        # Generate candidates using the given sampling function
         candidates = self.sampler(self, num_samples=(2 ** 10))
 
         # Calculate the expected improvement of each sample
@@ -163,7 +163,7 @@ class BayesianOptimisation:
         self.iteration_n = iteration_n
 
         # Sample initial points to kickstart optimisation
-        self.x_samples = np.vstack((self.x_samples, self.sampler(self, 10)))
+        self.x_samples = np.vstack((self.x_samples, self.sampler(self, 2 ** 4)))
         for sample in self.x_samples:
             y_sample = self.objective(self.x_obs, self.y_obs, sample)
             self.y_samples = np.append(self.y_samples, y_sample)
@@ -198,11 +198,12 @@ start = time.time()
 gp = GaussianProcess(kernel=matern52_kernel, sigma_l=2, sigma_f=1)
 
 optimiser = BayesianOptimisation(surrogate=gp, acquisition=expected_improvement,
-                                 objective=objective_function, sampler=samp.sobol_sampling,
+                                 objective=objective_function, sampler=sobol_sampling,
                                  bounds=parameter_bounds)
-optimiser.fit(X, Y, 100)
+optimiser.fit(X, Y, 1000)
 end = time.time()
 
 optimiser.regret_plot()
 optimiser.plot_best_param()
 print(end - start)
+print(optimiser.x_samples[optimiser.current_best_index])

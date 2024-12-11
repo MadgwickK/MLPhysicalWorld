@@ -17,10 +17,8 @@ def matern52_kernel(x_1, x_2, sigma_f, sigma_l):
     Returns: Covariance matrix.
 
     """
-    if x_2 is None:
-        dist = cdist(x_1, x_1)
-    else:
-        dist = cdist(x_1, x_2)
+    dist = cdist(x_1, x_1 if x_2 is None else x_2)
+
     return (sigma_f ** 2) * (1 + np.sqrt(5) * dist / sigma_l +
                              5 * dist**2 /(3 * sigma_l**2)) * np.exp(-np.sqrt(5) * dist/sigma_l)
 
@@ -34,9 +32,10 @@ class GaussianProcess:
     Attributes:
         x_train (ndarray): Training data points (inputs).
         y_train (ndarray): Observed values at the training data points.
-        kernel (Callable): Kernel function defining the covariance structure.
+        kernel (function): Kernel function defining the covariance structure.
         sigma_l (float): Length scale hyperparameter for the kernel.
         sigma_f (float): Signal variance hyperparameter for the kernel.
+        K (ndarray): Covariance matrix.
         L (ndarray): Cholesky decomposition of the training covariance matrix.
         alpha (ndarray): Precomputed weights for predictions.
     """
@@ -47,9 +46,9 @@ class GaussianProcess:
         self.kernel = kernel
         self.sigma_l = sigma_l
         self.sigma_f = sigma_f
-        self.mean_function = mean_function if mean_function is not None \
-            else lambda x: np.zeros(x.shape[0])
+        self.mean_function = mean_function or (lambda x: np.zeros(x.shape[0]))
 
+        self.K = None
         self.L = None
         self.alpha = None
 
@@ -66,11 +65,14 @@ class GaussianProcess:
         # Apply the mean function to the training data
         mean_train = self.mean_function(x_train)
 
+        # Add small term to ensure numerical stability
+        jitter = 1e-10
         # Covariance matrix for x_train
-        K = self.kernel(x_train, x_train, self.sigma_f, self.sigma_l)
+        self.K = (self.kernel(x_train, x_train, self.sigma_f, self.sigma_l)
+             + jitter * np.eye(len(x_train)))
 
         # Cholesky decomposition of the covariance matrix of x_train
-        self.L = np.linalg.cholesky(K)
+        self.L = np.linalg.cholesky(self.K)
 
         # Solve for alpha
         self.alpha = np.linalg.solve(self.L.T, np.linalg.solve(self.L, y_train - mean_train))
