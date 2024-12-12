@@ -33,11 +33,11 @@ def noisy_data_calc(low,upper,theta,noise,number,t_0=0):
     their corresponding magnification.
     low: Lower time bound of the dataset, in units of days. Must be negative
     upper: Upper time bound of the dataset, in units of days. Must be positive
-    theta: Parameters of the lightcurve model - d_L, D_S, v_M_ratio, u_min
+    theta: Parameters of the lightcurve model - t_E, u_min, t_0
     noise: Standard deviation of the gaussian distribution from which noise is sampled
     number: Number of samples to be selected.
     t_0: Peak of lightcurve. Default 0'''
 
     ts = np.random.uniform(low,upper,number)
-    mags = mean_function_theta(ts,theta,t_0) + np.random.normal(0,noise,number)
+    mags = mean_function_theta(ts,theta) + np.random.normal(0,noise,number)
     return ts, mags
