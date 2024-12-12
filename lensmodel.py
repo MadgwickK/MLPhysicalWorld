@@ -36,7 +36,12 @@ def noisy_data_calc(low,upper,theta,noise,number,t_0=0):
     theta: Parameters of the lightcurve model - t_E, u_min, t_0
     noise: Standard deviation of the gaussian distribution from which noise is sampled
     number: Number of samples to be selected.
-    t_0: Peak of lightcurve. Default 0'''
+    t_0: Peak of lightcurve. Default 0
+    
+    ---- returns ----
+    ts: Array of t values generated randomly
+    mags: Array of noisy magnification values
+    '''
 
     ts = np.random.uniform(low,upper,number)
     mags = mean_function_theta(ts,theta) + np.random.normal(0,noise,number)
