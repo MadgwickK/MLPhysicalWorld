@@ -1,5 +1,5 @@
 """
-Implementation of Bayesian optimisation.
+Implementation of Bayesian optimisation to find parameters given observed microlensing data.
 """
 import numpy as np
 from sklearn.metrics import mean_squared_error
@@ -14,10 +14,9 @@ from gaussian_process import GaussianProcess, matern52_kernel
 
 
 parameter_bounds = {
-    'd_L':                      [0, 10000], # In parsecs
-    'd_S':                      [0, 10000], # In parsecs
-    'v_M_ratio':                [0, 1000],  # km s^{-1} (solar mass)^{-1}
-    'u_min':                    [0, 4]      # unitless
+    't_E':      [0.01, 700],    # days
+    'u_min':    [0, 4],         # unitless
+    't_0':      [-5, 5]         # days
 }
 
 # Exploration parameter for expected improvement
@@ -28,20 +27,21 @@ FUNCTION = mean_function_theta
 X = np.random.uniform(-30, 30, 20)
 Y = mean_function_theta(X, [70, 400, 100, 1])
 
-def objective_function(x_obs, y_obs, parameters):
+
+def objective_function(observed_times, magnifications, parameters):
     """
     Calculates the mean squared error of some function given the real data and a set of the
     function´s parameters.
     Args:
-        x_obs (ndarray): Observed data.
-        y_obs (ndarray): Observed data.
+        observed_times (ndarray): Times observed.
+        magnifications (ndarray): Magnifications observed.
         parameters (ndarray): Model parameters.
 
     Returns:
         loss (float): Mean squared error.
     """
-    y_pred = FUNCTION(x_obs, parameters)
-    loss = mean_squared_error(y_obs, y_pred)
+    y_pred = FUNCTION(observed_times, parameters)
+    loss = mean_squared_error(magnifications, y_pred)
     return loss
 
 
@@ -88,11 +88,11 @@ class BayesianOptimisation:
         objective (function): Objective function.
         sampler (function): Sampler function.
         bounds (dict): Parameter bounds.
-        x_obs (ndarray): Observed data.
-        y_obs (ndarray): Observed data.
+        observed_times (ndarray): Times observed.
+        magnifications (ndarray): Magnifications observed.
         iteration_n (int): Number of iterations.
-        x_samples (ndarray): Previously sampled points.
-        y_samples (ndarray): Previously sampled points.
+        x_samples (ndarray): Previously sampled parameters.
+        y_samples (ndarray): Previously sampled losses.
         current_best_index (int): Index of the current best point in the x and y sample arrays.
     """
     def __init__(self, surrogate, acquisition, objective, sampler, bounds):
@@ -102,8 +102,8 @@ class BayesianOptimisation:
         self.bounds = bounds
         self.sampler = sampler
 
-        self.x_obs = None
-        self.y_obs = None
+        self.observed_times = None
+        self.magnifications = None
         self.iteration_n = None
 
         bounds_array = np.array(list(self.bounds.values()))
@@ -141,7 +141,7 @@ class BayesianOptimisation:
         x_next = self.propose_location()
 
         # Evaluate the objective at new location
-        y_next = self.objective(self.x_obs, self.y_obs, x_next)
+        y_next = self.objective(self.observed_times, self.magnifications, x_next)
 
         # Update observed samples
         self.x_samples = np.vstack((self.x_samples, x_next))
@@ -161,14 +161,18 @@ class BayesianOptimisation:
             y_obs (ndarray): Observed data.
             iteration_n (int): Number of iterations.
         """
-        self.x_obs = x_obs
-        self.y_obs = y_obs
+        self.observed_times = x_obs
+        self.magnifications = y_obs
         self.iteration_n = iteration_n
+
+        # Update bounds on t_0 if t_0 is a bound
+        if self.bounds['t_0'] is not None:
+            self.bounds['t_0'] = [np.minimum(self.observed_times), np.maximum(self.observed_times)]
 
         # Sample initial points to kickstart optimisation
         self.x_samples = np.vstack((self.x_samples, self.sampler(self, 2 ** 4)))
         for sample in self.x_samples:
-            y_sample = self.objective(self.x_obs, self.y_obs, sample)
+            y_sample = self.objective(self.observed_times, self.magnifications, sample)
             self.y_samples = np.append(self.y_samples, y_sample)
 
         # Start surrogate model
@@ -187,7 +191,7 @@ class BayesianOptimisation:
         magnification = FUNCTION(t, best_parameters)
 
         plt.plot(t, magnification, color='blue')
-        plt.scatter(self.x_obs, self.y_obs, color='red')
+        plt.scatter(self.observed_times, self.magnifications, color='red')
         plt.show()
 
     def regret_plot(self):

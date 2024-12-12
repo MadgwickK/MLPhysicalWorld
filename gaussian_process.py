@@ -1,5 +1,5 @@
 """
-Defines the gaussian process class along with different kernel fynctions.
+Defines the gaussian process class along with different kernel fuctions.
 """
 import numpy as np
 from scipy.spatial.distance import cdist
