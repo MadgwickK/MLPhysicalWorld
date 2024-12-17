@@ -23,6 +23,11 @@ def matern52_kernel(x_1, x_2, sigma_f, sigma_l):
                              5 * dist**2 /(3 * sigma_l**2)) * np.exp(-np.sqrt(5) * dist/sigma_l)
 
 
+def rbf_kernel(x_1, x_2, sigma_f, sigma_l):
+    dist = cdist(x_1, x_1 if x_2 is None else x_2)
+    return (sigma_f**2) * np.exp((dist**2) / (2 * sigma_l**2))
+
+
 class GaussianProcess:
     """
     Gaussian Process class.

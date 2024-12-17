@@ -7,42 +7,36 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 import time
 from itertools import accumulate
-from samplers import sobol_sampling
-
+from samplers import uniform_random, latin_hypercube_sampling
 from lensmodel import mean_function_theta
 from gaussian_process import GaussianProcess, matern52_kernel
+from objectives import mae
 
 
 parameter_bounds = {
     't_E':      [0.01, 700],    # days
-    'u_min':    [0, 4],         # unitless
-    't_0':      [-5, 5]         # days
+    't_0':      [-5, 5],        # days
+    'u_min':    [0, 4]          # unitless
 }
 
 # Exploration parameter for expected improvement
-XI = 0.5
+XI = 0.2
 
-# Function being fit by the parameters
 FUNCTION = mean_function_theta
-X = np.random.uniform(-30, 30, 20)
-Y = mean_function_theta(X, [70, 400, 100, 1])
+X = np.random.uniform(-70, 70, 50)
+Y = mean_function_theta(X, [60, 1])
 
 
-def objective_function(observed_times, magnifications, parameters):
-    """
-    Calculates the mean squared error of some function given the real data and a set of the
-    function´s parameters.
-    Args:
-        observed_times (ndarray): Times observed.
-        magnifications (ndarray): Magnifications observed.
-        parameters (ndarray): Model parameters.
+def create_mean_function(observed_times, magnifications):
+    mag_gaussian = GaussianProcess(kernel=matern52_kernel, sigma_l=2, sigma_f=1)
+    mag_gaussian.fit(observed_times.reshape(-1, 1), magnifications)
+    pred_mag, cov = mag_gaussian.predict(observed_times.reshape(-1, 1))
+    loss = mean_squared_error(magnifications, pred_mag)
 
-    Returns:
-        loss (float): Mean squared error.
-    """
-    y_pred = FUNCTION(observed_times, parameters)
-    loss = mean_squared_error(magnifications, y_pred)
-    return loss
+    def constant_mean_function(x):
+        return loss
+
+    return constant_mean_function
 
 
 def expected_improvement(candidates, y_samples, surrogate):
@@ -86,8 +80,8 @@ class BayesianOptimisation:
         surrogate (class): Surrogate model.
         acquisition (function): Acquisition function.
         objective (function): Objective function.
-        sampler (function): Sampler function.
         bounds (dict): Parameter bounds.
+        sampler (function): Sampler function, if none is specified then grid sampling is used.
         observed_times (ndarray): Times observed.
         magnifications (ndarray): Magnifications observed.
         iteration_n (int): Number of iterations.
@@ -95,7 +89,7 @@ class BayesianOptimisation:
         y_samples (ndarray): Previously sampled losses.
         current_best_index (int): Index of the current best point in the x and y sample arrays.
     """
-    def __init__(self, surrogate, acquisition, objective, sampler, bounds):
+    def __init__(self, surrogate, acquisition, objective, bounds, sampler=None):
         self.surrogate = surrogate
         self.acquisition = acquisition
         self.objective = objective
@@ -105,6 +99,7 @@ class BayesianOptimisation:
         self.observed_times = None
         self.magnifications = None
         self.iteration_n = None
+        self._grid_cache = None
 
         bounds_array = np.array(list(self.bounds.values()))
         dim = bounds_array.shape[0]
@@ -112,14 +107,15 @@ class BayesianOptimisation:
         self.y_samples = np.empty((0, 1))
         self.current_best_index = None
 
-    def propose_location(self):
+
+    def _propose_location(self):
         """
         Proposes a new sample with the user defined sampler function and the acquisition function.
         Returns:
             best_candidate (ndarray): Best candidate point.
         """
         # Generate candidates using the given sampling function
-        candidates = self.sampler(self, num_samples=(2 ** 10))
+        candidates = self.sampler(self, num_samples=(10 ** 3))
 
         # Calculate the expected improvement of each sample
         exp_imp = self.acquisition(candidates, self.y_samples, self.surrogate)
@@ -132,13 +128,13 @@ class BayesianOptimisation:
 
         return best_candidate
 
-    def update(self):
+    def _update(self):
         """
         Proposes a sampling location, computes the objective, and adds the sample to the lists of
         all samples. Also updates the current best sample.
         """
         # Propose next sampling location
-        x_next = self.propose_location()
+        x_next = self._propose_location()
 
         # Evaluate the objective at new location
         y_next = self.objective(self.observed_times, self.magnifications, x_next)
@@ -166,28 +162,31 @@ class BayesianOptimisation:
         self.iteration_n = iteration_n
 
         # Update bounds on t_0 if t_0 is a bound
-        if self.bounds['t_0'] is not None:
-            self.bounds['t_0'] = [np.minimum(self.observed_times), np.maximum(self.observed_times)]
+        if 't_0' in self.bounds:
+            self.bounds['t_0'] = [np.min(self.observed_times), np.max(self.observed_times)]
 
-        # Sample initial points to kickstart optimisation
-        self.x_samples = np.vstack((self.x_samples, self.sampler(self, 2 ** 4)))
+        # Sample initial points to kickstart optimisation using uniform random sampling
+        self.x_samples = np.vstack((self.x_samples, uniform_random(self, 16)))
         for sample in self.x_samples:
             y_sample = self.objective(self.observed_times, self.magnifications, sample)
             self.y_samples = np.append(self.y_samples, y_sample)
+
+        # Calculate current best
+        self.current_best_index = np.argmin(self.y_samples)
 
         # Start surrogate model
         self.surrogate.fit(self.x_samples, self.y_samples)
 
         # Run algorithm for n iterations
         for _ in range(self.iteration_n):
-            self.update()
+            self._update()
 
     def plot_best_param(self):
         # Call best found parameters
         best_parameters = self.x_samples[self.current_best_index]
 
         # Calculate the magnification function for these best parameters
-        t = np.linspace(-40, 40, 10000)
+        t = np.linspace(-70, 70, 10000)
         magnification = FUNCTION(t, best_parameters)
 
         plt.plot(t, magnification, color='blue')
@@ -202,15 +201,18 @@ class BayesianOptimisation:
 
 start = time.time()
 
-gp = GaussianProcess(kernel=matern52_kernel, sigma_l=2, sigma_f=1)
+mean_function = create_mean_function(X, Y)
+gp = GaussianProcess(kernel=matern52_kernel, sigma_l=2, sigma_f=1, mean_function=mean_function)
 
 optimiser = BayesianOptimisation(surrogate=gp, acquisition=expected_improvement,
-                                 objective=objective_function, sampler=sobol_sampling,
-                                 bounds=parameter_bounds)
+                                 objective=mae, bounds=parameter_bounds,
+                                 sampler=latin_hypercube_sampling)
 optimiser.fit(X, Y, 1000)
 end = time.time()
 
 optimiser.regret_plot()
 optimiser.plot_best_param()
-print(end - start)
-print(optimiser.x_samples[optimiser.current_best_index])
+
+print('time taken:', end - start)
+print('best parameters:', optimiser.x_samples[optimiser.current_best_index])
+print('best error:', optimiser.y_samples[optimiser.current_best_index])

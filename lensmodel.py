@@ -59,7 +59,7 @@ def mean_function_with_planet(t, M, d_L, d_S, v_T, M_p, r_P, u_min=1, t_0=0):
     planet_mag = mean_function(t, M_pnew, d_L, d_S, v_T, u_min, t_0=t_0p)
     return star_mag + planet_mag - 1
 
-def mean_function_theta(t,theta,t_0=0):
+def mean_function_theta(t,theta, t_0=0):
     '''t is time in units of days
     Theta is a tuple of all parameters, in the following order:
     d_L: Distance to source, units of parsecs
@@ -71,14 +71,11 @@ def mean_function_theta(t,theta,t_0=0):
 
     #Adjusting to new units and unpacking theta
     tnew = t*24*(60**2)
+    t_E = theta[0]*24*(60**2)
     t_0new = t_0*24*(60**2)
-    d_L = theta[0]*3.086e16
-    d_S = theta[1]*3.086e16
-    v_M_ratio = theta[2]*1e3/np.sqrt(1.99e30)
-    u_min = theta[3]
+    u_min = theta[1]
 
-    r_E = np.sqrt(4*(6.67e-11)*d_L*(d_S-d_L)/(9e16 * d_S)) #r_E without mass term
-    us = np.sqrt(u_min**2 + (v_M_ratio*(tnew-t_0new)/r_E)**2)
+    us = np.sqrt(u_min**2 + ((tnew-t_0new)/t_E)**2)
     return get_mag(us)
 
 def noisy_data_calc(low,upper,theta,noise,number,t_0=0):
