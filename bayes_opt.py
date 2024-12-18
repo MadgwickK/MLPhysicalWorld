@@ -2,19 +2,18 @@
 Implementation of Bayesian optimisation to find parameters given observed microlensing data.
 """
 import numpy as np
-from sklearn.metrics import mean_squared_error
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 import time
 from itertools import accumulate
-from samplers import uniform_random, latin_hypercube_sampling
+from samplers import uniform_random, sobol_sampling
 from lensmodel import mean_function_theta
-from gaussian_process import GaussianProcess, matern52_kernel
-from objectives import mae
+from gaussian_process import GaussianProcess, rbf_kernel
+from objectives import mse
 
 
 parameter_bounds = {
-    't_E':      [0.01, 700],    # days
+    't_E':      [0.01, 100],    # days 700
     't_0':      [-5, 5],        # days
     'u_min':    [0, 4]          # unitless
 }
@@ -22,16 +21,15 @@ parameter_bounds = {
 # Exploration parameter for expected improvement
 XI = 0.2
 
+
 FUNCTION = mean_function_theta
-X = np.random.uniform(-70, 70, 50)
-Y = mean_function_theta(X, [60, 1])
 
 
 def create_mean_function(observed_times, magnifications):
-    mag_gaussian = GaussianProcess(kernel=matern52_kernel, sigma_l=2, sigma_f=1)
+    mag_gaussian = GaussianProcess(kernel=rbf_kernel, sigma_l=2, sigma_f=1)
     mag_gaussian.fit(observed_times.reshape(-1, 1), magnifications)
     pred_mag, cov = mag_gaussian.predict(observed_times.reshape(-1, 1))
-    loss = mean_squared_error(magnifications, pred_mag)
+    loss = np.mean((magnifications - pred_mag) ** 2)
 
     def constant_mean_function(x):
         return loss
@@ -115,7 +113,7 @@ class BayesianOptimisation:
             best_candidate (ndarray): Best candidate point.
         """
         # Generate candidates using the given sampling function
-        candidates = self.sampler(self, num_samples=(10 ** 3))
+        candidates = self.sampler(self, num_samples=(2 ** 10))
 
         # Calculate the expected improvement of each sample
         exp_imp = self.acquisition(candidates, self.y_samples, self.surrogate)
@@ -197,22 +195,3 @@ class BayesianOptimisation:
         current_best_losses = list(accumulate(-self.y_samples, max))
         plt.plot(current_best_losses)
         plt.show()
-
-
-start = time.time()
-
-mean_function = create_mean_function(X, Y)
-gp = GaussianProcess(kernel=matern52_kernel, sigma_l=2, sigma_f=1, mean_function=mean_function)
-
-optimiser = BayesianOptimisation(surrogate=gp, acquisition=expected_improvement,
-                                 objective=mae, bounds=parameter_bounds,
-                                 sampler=latin_hypercube_sampling)
-optimiser.fit(X, Y, 1000)
-end = time.time()
-
-optimiser.regret_plot()
-optimiser.plot_best_param()
-
-print('time taken:', end - start)
-print('best parameters:', optimiser.x_samples[optimiser.current_best_index])
-print('best error:', optimiser.y_samples[optimiser.current_best_index])

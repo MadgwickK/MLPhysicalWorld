@@ -15,7 +15,6 @@ def matern52_kernel(x_1, x_2, sigma_f, sigma_l):
         sigma_l (float): Lenght scale.
 
     Returns: Covariance matrix.
-
     """
     dist = cdist(x_1, x_1 if x_2 is None else x_2)
 
@@ -24,8 +23,19 @@ def matern52_kernel(x_1, x_2, sigma_f, sigma_l):
 
 
 def rbf_kernel(x_1, x_2, sigma_f, sigma_l):
+    """
+    Calculates the RBF kernel for one or two given inputs
+    Args:
+        x_1 (ndarray): An ndarray of N dimensional data points.
+        x_2 (ndarray or None): Same as x_1.
+        sigma_f (float): Variance.
+        sigma_l (float): Lenght scale.
+
+    Returns: Covariance matrix.
+    """
     dist = cdist(x_1, x_1 if x_2 is None else x_2)
-    return (sigma_f**2) * np.exp((dist**2) / (2 * sigma_l**2))
+
+    return (sigma_f**2) * np.exp(-(dist**2) / (2 * sigma_l**2))
 
 
 class GaussianProcess:
@@ -57,7 +67,7 @@ class GaussianProcess:
         self.L = None
         self.alpha = None
 
-    def fit(self, x_train, y_train):
+    def fit(self, x_train, y_train, noise_variance=0):
         """
         Fits the Gaussian Process.
         Args:
@@ -70,11 +80,15 @@ class GaussianProcess:
         # Apply the mean function to the training data
         mean_train = self.mean_function(x_train)
 
+        # Covariance matrix for x_train
+        self.K = self.kernel(x_train, x_train, self.sigma_f, self.sigma_l)
+
         # Add small term to ensure numerical stability
         jitter = 1e-10
-        # Covariance matrix for x_train
-        self.K = (self.kernel(x_train, x_train, self.sigma_f, self.sigma_l)
-             + jitter * np.eye(len(x_train)))
+        self.K += jitter * np.eye(self.K.shape[0])
+
+        # Add noise variance to the diagonal of the covariance matrix
+        self.K += noise_variance * np.eye(self.K.shape[0])
 
         # Cholesky decomposition of the covariance matrix of x_train
         self.L = np.linalg.cholesky(self.K)
@@ -82,7 +96,7 @@ class GaussianProcess:
         # Solve for alpha
         self.alpha = np.linalg.solve(self.L.T, np.linalg.solve(self.L, y_train - mean_train))
 
-    def predict(self, x_test):
+    def predict(self, x_test, noise_variance=0):
         """
         Calculates the mean and covariance matrix of given points.
         Args:
@@ -92,10 +106,10 @@ class GaussianProcess:
             mu_s (float): Predicted mean.
             cov_s (ndarray): Predicted covariance matrix.
         """
-        # Covariance matrix between the training and testing data points.
+        # Covariance matrix between the training and testing data points
         K_s = self.kernel(self.x_train, x_test, self.sigma_f, self.sigma_l)
 
-        # Covariance matrix for the test data.
+        # Covariance matrix for the test data
         K_ss = self.kernel(x_test, x_test, self.sigma_f, self.sigma_l)
 
         mean_test = self.mean_function(x_test)
@@ -103,4 +117,7 @@ class GaussianProcess:
 
         var = np.linalg.solve(self.L, K_s)
         cov_s = K_ss - var.T.dot(var)
+
+        # Add noise variance to the covariance matrix of the predictions
+        cov_s += noise_variance * np.eye(cov_s.shape[0])
         return mu_s, cov_s
