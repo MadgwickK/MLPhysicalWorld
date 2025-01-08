@@ -101,7 +101,7 @@ def gaussian_sampling(self, num_samples=2 ** 10):
     for lower, upper in bounds_array:
         # Calculate mean and standard deviation with given bounds
         mean = (upper + lower) / 2
-        std_dev = (upper - lower) / 6 # Assume bounds covered 3σ
+        std_dev = (upper - lower) / 2 # Assume bounds covered σ
 
         # Append mean and standard deviation to arrays
         means.append(mean)
@@ -139,7 +139,7 @@ def gaussian_sobol(self, num_samples=2 ** 10):
     for lower, upper in bounds_array:
         # Calculate mean and standard deviation with given bounds
         mean = (upper + lower) / 2
-        std_dev = (upper - lower) / 6 # Assume bounds covered 3σ
+        std_dev = (upper - lower) / 2 # Assume bounds covered σ
 
         # Append mean and standard deviation to arrays
         means.append(mean)
