@@ -16,18 +16,18 @@ def mse(observed_times, magnifications, parameters):
     Returns:
         loss (float): Mean squared error.
     """
-    pred_mag = FUNCTION(observed_times, parameters)
+    pred_mag = FUNCTION(observed_times, [parameters[0], parameters[2]], parameters[1])
     loss = np.mean((magnifications - pred_mag) ** 2)
     return loss
 
 
 def mae(observed_times, magnifications, parameters):
-    pred_mag = FUNCTION(observed_times, parameters)
+    pred_mag = FUNCTION(observed_times, [parameters[0], parameters[2]], parameters[1])
     loss = np.mean(np.abs(magnifications - pred_mag))
     return loss
 
 
 def log_cosh(observed_times, magnifications, parameters):
-    pred_mag = FUNCTION(observed_times, parameters)
+    pred_mag = FUNCTION(observed_times, [parameters[0], parameters[2]], parameters[1])
     loss = np.mean(np.log(np.cosh(magnifications - pred_mag)))
     return loss

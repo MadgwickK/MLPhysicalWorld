@@ -4,19 +4,10 @@ Implementation of Bayesian optimisation to find parameters given observed microl
 import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt
-import time
 from itertools import accumulate
-from samplers import uniform_random, sobol_sampling
+from samplers import uniform_random
 from lensmodel import mean_function_theta
 from gaussian_process import GaussianProcess, rbf_kernel
-from objectives import mse
-
-
-parameter_bounds = {
-    't_E':      [0.01, 100],    # days 700
-    't_0':      [-5, 5],        # days
-    'u_min':    [0, 4]          # unitless
-}
 
 # Exploration parameter for expected improvement
 XI = 0.2
@@ -159,10 +150,6 @@ class BayesianOptimisation:
         self.magnifications = y_obs
         self.iteration_n = iteration_n
 
-        # Update bounds on t_0 if t_0 is a bound
-        if 't_0' in self.bounds:
-            self.bounds['t_0'] = [np.min(self.observed_times), np.max(self.observed_times)]
-
         # Sample initial points to kickstart optimisation using uniform random sampling
         self.x_samples = np.vstack((self.x_samples, uniform_random(self, 16)))
         for sample in self.x_samples:
@@ -184,8 +171,10 @@ class BayesianOptimisation:
         best_parameters = self.x_samples[self.current_best_index]
 
         # Calculate the magnification function for these best parameters
-        t = np.linspace(-70, 70, 10000)
-        magnification = FUNCTION(t, best_parameters)
+        t_min = np.min(self.observed_times)
+        t_max = np.max(self.observed_times)
+        t = np.linspace(t_min, t_max, 10000)
+        magnification = FUNCTION(t, [best_parameters[0], best_parameters[2]], best_parameters[1])
 
         plt.plot(t, magnification, color='blue')
         plt.scatter(self.observed_times, self.magnifications, color='red')
