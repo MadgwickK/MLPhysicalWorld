@@ -67,12 +67,14 @@ class GaussianProcess:
         self.L = None
         self.alpha = None
 
-    def fit(self, x_train, y_train, noise_variance=0):
+    def fit(self, x_train, y_train, y_errors=None, noise_variance=0):
         """
         Fits the Gaussian Process.
         Args:
             x_train (ndarray): training data points.
             y_train (ndarray): f(x_train).
+            y_errors (ndarray): f(x_train) errors.
+            noise_variance (float): Noise variance.
         """
         self.x_train = x_train
         self.y_train = y_train
@@ -87,8 +89,12 @@ class GaussianProcess:
         jitter = 1e-10
         self.K += jitter * np.eye(self.K.shape[0])
 
-        # Add noise variance to the diagonal of the covariance matrix
-        self.K += noise_variance * np.eye(self.K.shape[0])
+        # Add errors in y to the diagonal of the covariance matrix if provided. Otherwise, add
+        # isotropic noise to the diagonal of the covariance matrix
+        if y_errors is not None:
+            self.K += np.diag(y_errors)
+        else:
+            self.K += noise_variance * np.eye(self.K.shape[0])
 
         # Cholesky decomposition of the covariance matrix of x_train
         self.L = np.linalg.cholesky(self.K)
