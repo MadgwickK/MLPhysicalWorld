@@ -2,13 +2,13 @@ import numpy as np
 from gaussian_process import GaussianProcess, matern52_kernel
 from lensmodel import noisy_data_calc
 from bayes_opt import BayesianOptimisation, expected_improvement
-from samplers import gaussian_sampling
+from samplers import gaussian_sobol
 from objectives import mse
 import matplotlib.pyplot as plt
-from parameter_estimation import estimate_params
+from parameter_estimation_2 import estimate_params
 from lensmodel import mean_function_theta
 
-X, Y = noisy_data_calc(-40, 40, [20, 0.5], 0.05, 50, t_0=0)
+X, Y = noisy_data_calc(-40, 40, [20, 0.5], 0.1, 15, t_0=0)
 
 parameter_bounds = {
     't_E':      [0.01, 700],    # days
@@ -79,9 +79,9 @@ def main(observed_times, magnifications, bounds):
 
     print(
         "Initial predictions:\n"
-        f" t_0: {t_0} +/- {sigma*t_0_error}\n"
-        f" u_min: {u_min} +/- {sigma*u_min_error}\n"
-        f" t_E: {t_E} +/- {sigma*t_E_error}"
+        f"    t_0: {t_0} \u00B1 {sigma*t_0_error}\n"
+        f"    u_min: {u_min} \u00B1 {sigma*u_min_error}\n"
+        f"    t_E: {t_E} \u00B1 {sigma*t_E_error}"
     )
 
     # Changes bounds to take into account predictions
@@ -97,13 +97,13 @@ def main(observed_times, magnifications, bounds):
         # Define Bayesian optimisation
         optimiser = BayesianOptimisation(surrogate=gp, acquisition=expected_improvement,
                                          objective=mse, bounds=parameter_bounds,
-                                         sampler=gaussian_sampling)
+                                         sampler=gaussian_sobol)
 
         # Fit for parameters using the defined Bayesian optimiser
         optimiser.fit(observed_times, magnifications, 300)
 
         # Plot regret and results
-        optimiser.regret_plot()
+        # optimiser.regret_plot()
         # optimiser.plot_best_param()
 
         # Append found parameters to the list of all predictions
@@ -115,9 +115,9 @@ def main(observed_times, magnifications, bounds):
 
     print(
         "Final predictions:\n"
-        f" t_0: {best_parameters[1]} +/- {best_parameter_errors[1]}\n"
-        f" u_min: {best_parameters[2]} +/- {best_parameter_errors[2]}\n"
-        f" t_E: {best_parameters[0]} +/- {best_parameter_errors[0]}"
+        f"    t_0: {best_parameters[1]} \u00B1 {best_parameter_errors[1]}\n"
+        f"    u_min: {best_parameters[2]} \u00B1 {best_parameter_errors[2]}\n"
+        f"    t_E: {best_parameters[0]} \u00B1 {best_parameter_errors[0]}"
     )
 
     plot_final_params(observed_times, magnifications, best_parameters)
