@@ -13,6 +13,8 @@ def get_u(t,r_E, v_T,u_min=1,t_0=0):
     Transverse velocity v_T; minimum u value, u_min set at 0 by default; time of peak, t_0 set at 0 by default'''
     return np.sqrt(u_min**2 + (v_T*(t-t_0)/r_E)**2)
 
+
+
 def mean_function_theta(t,theta):
     '''A mean function with no predicted degeneracy.
     Theta parameters:
@@ -33,7 +35,7 @@ def noisy_data_calc(low,upper,theta,noise,number,t_0=0):
     their corresponding magnification.
     low: Lower time bound of the dataset, in units of days. Must be negative
     upper: Upper time bound of the dataset, in units of days. Must be positive
-    theta: Parameters of the lightcurve model - t_E, u_min, t_0
+    theta: Parameters of the lightcurve model - d_L, D_S, v_M_ratio, u_min
     noise: Standard deviation of the gaussian distribution from which noise is sampled
     number: Number of samples to be selected.
     t_0: Peak of lightcurve. Default 0
@@ -44,7 +46,7 @@ def noisy_data_calc(low,upper,theta,noise,number,t_0=0):
     '''
 
     ts = np.random.uniform(low,upper,number)
-    mags = mean_function_theta(ts,theta) + np.random.normal(0,noise,number)
+    mags = mean_function_theta(ts,theta,t_0) + np.random.normal(0,noise,number)
     return ts, mags
 
 def parallax_data_calc(low,upper,theta_s,noise_s,no_s,theta_e,noise_e,no_e):
