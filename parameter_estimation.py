@@ -169,6 +169,8 @@ def estimate_params(observed_times, magnifications, bounds, mean_function=None):
     t_0, t_0_error, mag_peak, mag_peak_error = 0, 0, 0, 0
     u_min, u_min_error = 0, 0
     t_E, t_E_error = 0, 0
+    # Run twice, once for an initial estimation and then again using the inital estimation as
+    # a mean function such that the GP has some knowledge about the shape of the function
     for i in range(2):
         # Fit Gaussian process to datapoints
         mag_gaussian = fit_mag(observed_times, magnifications, mean_function)
