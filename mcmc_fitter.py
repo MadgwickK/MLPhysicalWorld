@@ -121,6 +121,10 @@ def mcmc_results(sampler,burnin = 0):
     fig = corner.corner(flat_samples, labels=labels, truths=params[1])   
     plt.show()
 
+    print(f"t_E = {params[1,0]:.2f} + {params[2,0]-params[1,0]:.2f} - {params[1,0]-params[0,0]:.2f}")
+    print(f"u_0 = {params[1,1]:.2f} + {params[2,1]-params[1,1]:.2f} - {params[1,1]-params[0,1]:.2f}")
+    print(f"t_E = {params[1,2]:.2f} + {params[2,2]-params[1,2]:.2f} - {params[1,2]-params[0,2]:.2f}")
+
     return params
 
 '''
