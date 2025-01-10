@@ -107,7 +107,7 @@ def mcmc_results(sampler,burnin = 0):
     params = np.percentile(flat_samples, [16, 50, 84],axis=0)
 
     fig, axes = plt.subplots(3, figsize=(10, 7), sharex=True)
-    labels = ["t_E", "u_0", "t_0"]
+    labels = [r"$t_E$", r"$u_{\mathrm{min}}$", r"$t_0$"]
     for i in range(3):
         ax = axes[i]
         ax.plot(samples[:, :, i], "k", alpha=0.3)
