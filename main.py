@@ -1,14 +1,14 @@
 import numpy as np
 from gaussian_process import GaussianProcess, matern52_kernel
-from lensmodel import noisy_data_calc
 from bayes_opt import BayesianOptimisation, expected_improvement
-from samplers import gaussian_sobol
-from objectives import mse
+from samplers import gaussian_sampling
+from objectives import log_likelihood
 import matplotlib.pyplot as plt
-from parameter_estimation_2 import estimate_params
+from parameter_estimation import estimate_params
 from lensmodel import mean_function_theta
 
-X, Y = noisy_data_calc(-40, 40, [20, 0.5], 0.1, 15, t_0=0)
+I_0 = 19.956 - 0.361*2
+f_s = 0.528
 
 parameter_bounds = {
     't_E':      [0.01, 700],    # days
@@ -43,13 +43,14 @@ def create_mean_function(gaussian_process, observed_times, magnifications):
     return constant_mean_function
 
 
-def plot_final_params(observed_times, magnifications, best_parameters):
+def plot_final_params(observed_times, magnifications, best_parameters, mags_error=None):
     """
     Plot the predicted magnification function and the observed data.
     Args:
         observed_times (ndarray): Times observed.
         magnifications (ndarray): Magnifications observed.
         best_parameters (list): Parameters being plotted.
+        mags_error (ndarray): Errors on the observed magnifications.
 
     """
     # Create fine mesh of times from the first observation to the last observation
@@ -61,12 +62,44 @@ def plot_final_params(observed_times, magnifications, best_parameters):
 
     # Plot prediction with the observed data
     plt.plot(times, mags, color='blue')
-    plt.scatter(observed_times, magnifications, color='red')
+    if mags_error is not None:
+        plt.errorbar(observed_times, magnifications, mags_error, fmt='.', color='red')
+    else:
+        plt.scatter(observed_times, magnifications, color='red')
     plt.show()
 
 
-def main(observed_times, magnifications, bounds):
-    mean_function = None
+def read_and_convert(file_name, I_0, f_s):
+    """
+    This function reads a file for microlens event (.dat) and converts the magnitude to magnification.
+    -------------------------
+    Parameters:
+    file_name (str): The name of the file to read.
+    I_0 (float): The reference magnitude. (can be found in the data webpage and zip file)
+    -------------------------
+    Returns:
+    data (DataFrame): The data read from the file with an additional column for magnification.
+    """
+    data = np.loadtxt(file_name)
+    times = data[:, 0]
+    magnitudes = data[:, 1]
+    mag_errors = data[:, 2]
+    delta_I = magnitudes - I_0
+    magnifications = ((10 ** (delta_I / -2.5) - 1) / f_s) + 1
+    magnification_errors = magnifications * np.log(10) * (mag_errors / 2.5)
+    # magnifications += 1 - np.min(magnifications)
+
+    # mag_peak = np.max(magnifications)
+    # threshold = 1 + (mag_peak - 1) * 0.0
+    # mask = magnifications > threshold
+    # magnifications = magnifications[mask]
+    # times = times[mask]
+    # magnification_errors = magnification_errors[mask]
+
+    return times, magnifications, magnification_errors
+
+
+def main(observed_times, magnifications, magnification_errors, bounds):
     sigma = 1
 
     # Change bounds on t_0 before estimating
@@ -75,7 +108,7 @@ def main(observed_times, magnifications, bounds):
     # Estimate parameters using bootstrapping
     t_E, t_E_error, t_0, t_0_error, u_min, u_min_error = estimate_params(observed_times,
                                                                          magnifications, bounds,
-                                                                         mean_function)
+                                                                         magnification_errors)
 
     print(
         "Initial predictions:\n"
@@ -96,14 +129,16 @@ def main(observed_times, magnifications, bounds):
 
         # Define Bayesian optimisation
         optimiser = BayesianOptimisation(surrogate=gp, acquisition=expected_improvement,
-                                         objective=mse, bounds=parameter_bounds,
-                                         sampler=gaussian_sobol)
+                                         objective=log_likelihood, bounds=parameter_bounds,
+                                         sampler=gaussian_sampling)
+
+        optimiser.mag_err = magnification_errors
 
         # Fit for parameters using the defined Bayesian optimiser
-        optimiser.fit(observed_times, magnifications, 300)
+        optimiser.fit(observed_times, magnifications, 400)
 
         # Plot regret and results
-        # optimiser.regret_plot()
+        optimiser.regret_plot()
         # optimiser.plot_best_param()
 
         # Append found parameters to the list of all predictions
@@ -120,7 +155,10 @@ def main(observed_times, magnifications, bounds):
         f"    t_E: {best_parameters[0]} \u00B1 {best_parameter_errors[0]}"
     )
 
-    plot_final_params(observed_times, magnifications, best_parameters)
+    plot_final_params(observed_times, magnifications, best_parameters, mags_error=magnification_errors)
 
 
-main(X, Y, parameter_bounds)
+time, mags, mags_error = read_and_convert("sample_data_OGLE/OGLE-2023-BLG-0002.dat", I_0, f_s)
+main(time, mags, mags_error, parameter_bounds)
+
+

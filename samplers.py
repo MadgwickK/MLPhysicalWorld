@@ -82,7 +82,7 @@ def sobol_sampling(self, num_samples=2 ** 10):
     return samples
 
 
-def gaussian_sampling(self, num_samples=2 ** 10):
+def gaussian_sampling(self, num_samples=2 ** 16):
     """
         Samples from a gaussian distribution.
         Args:

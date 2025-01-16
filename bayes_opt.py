@@ -10,7 +10,7 @@ from lensmodel import mean_function_theta
 from gaussian_process import GaussianProcess, rbf_kernel
 
 # Exploration parameter for expected improvement
-XI = 0.2
+XI = 0.0
 
 
 FUNCTION = mean_function_theta
@@ -73,6 +73,7 @@ class BayesianOptimisation:
         sampler (function): Sampler function, if none is specified then grid sampling is used.
         observed_times (ndarray): Times observed.
         magnifications (ndarray): Magnifications observed.
+        mag_err (ndarray): Errors on the magnifications.
         iteration_n (int): Number of iterations.
         x_samples (ndarray): Previously sampled parameters.
         y_samples (ndarray): Previously sampled losses.
@@ -87,6 +88,7 @@ class BayesianOptimisation:
 
         self.observed_times = None
         self.magnifications = None
+        self.mag_err = None
         self.iteration_n = None
         self._grid_cache = None
 
@@ -94,6 +96,7 @@ class BayesianOptimisation:
         dim = bounds_array.shape[0]
         self.x_samples = np.empty((0, dim))
         self.y_samples = np.empty((0, 1))
+        self.y_err = np.empty((0, 1))
         self.current_best_index = None
 
 
@@ -126,14 +129,22 @@ class BayesianOptimisation:
         x_next = self._propose_location()
 
         # Evaluate the objective at new location
-        y_next = self.objective(self.observed_times, self.magnifications, x_next)
+        if self.mag_err is None:
+            y_next = self.objective(self.observed_times, self.magnifications, x_next)
+        else:
+            y_next, y_err = self.objective(self.observed_times, self.magnifications,
+                                           x_next, self.mag_err)
+            self.y_err = np.append(self.y_err, y_err)
 
         # Update observed samples
         self.x_samples = np.vstack((self.x_samples, x_next))
         self.y_samples = np.append(self.y_samples, y_next)
 
         # Update surrogate model
-        self.surrogate.fit(self.x_samples, self.y_samples)
+        if self.mag_err is None:
+            self.surrogate.fit(self.x_samples, self.y_samples)
+        else:
+            self.surrogate.fit(self.x_samples, self.y_samples, y_errors=self.y_err)
 
         # Update current best
         self.current_best_index = np.argmin(self.y_samples)
@@ -151,16 +162,24 @@ class BayesianOptimisation:
         self.iteration_n = iteration_n
 
         # Sample initial points to kickstart optimisation using uniform random sampling
-        self.x_samples = np.vstack((self.x_samples, uniform_random(self, 16)))
+        self.x_samples = np.vstack((self.x_samples, uniform_random(self, 20)))
         for sample in self.x_samples:
-            y_sample = self.objective(self.observed_times, self.magnifications, sample)
+            if self.mag_err is None:
+                y_sample = self.objective(self.observed_times, self.magnifications, sample)
+            else:
+                y_sample, y_err = self.objective(self.observed_times, self.magnifications,
+                                                 sample, self.mag_err)
+                self.y_err = np.append(self.y_err, y_err)
             self.y_samples = np.append(self.y_samples, y_sample)
 
         # Calculate current best
         self.current_best_index = np.argmin(self.y_samples)
 
         # Start surrogate model
-        self.surrogate.fit(self.x_samples, self.y_samples)
+        if self.mag_err is None:
+            self.surrogate.fit(self.x_samples, self.y_samples)
+        else:
+            self.surrogate.fit(self.x_samples, self.y_samples, y_errors=self.y_err)
 
         # Run algorithm for n iterations
         for _ in range(self.iteration_n):
