@@ -1,6 +1,7 @@
 """
 Defines the gaussian process class along with different kernel fuctions.
 """
+
 import numpy as np
 from scipy.spatial.distance import cdist
 
@@ -18,8 +19,11 @@ def matern52_kernel(x_1, x_2, sigma_f, sigma_l):
     """
     dist = cdist(x_1, x_1 if x_2 is None else x_2)
 
-    return (sigma_f ** 2) * (1 + np.sqrt(5) * dist / sigma_l +
-                             5 * dist**2 /(3 * sigma_l**2)) * np.exp(-np.sqrt(5) * dist/sigma_l)
+    return (
+        (sigma_f**2)
+        * (1 + np.sqrt(5) * dist / sigma_l + 5 * dist**2 / (3 * sigma_l**2))
+        * np.exp(-np.sqrt(5) * dist / sigma_l)
+    )
 
 
 def rbf_kernel(x_1, x_2, sigma_f, sigma_l):
@@ -54,6 +58,7 @@ class GaussianProcess:
         L (ndarray): Cholesky decomposition of the training covariance matrix.
         alpha (ndarray): Precomputed weights for predictions.
     """
+
     def __init__(self, kernel, sigma_l, sigma_f, mean_function=None):
         self.x_train = None
         self.y_train = None
@@ -100,7 +105,9 @@ class GaussianProcess:
         self.L = np.linalg.cholesky(self.K)
 
         # Solve for alpha
-        self.alpha = np.linalg.solve(self.L.T, np.linalg.solve(self.L, y_train - mean_train))
+        self.alpha = np.linalg.solve(
+            self.L.T, np.linalg.solve(self.L, y_train - mean_train)
+        )
 
     def predict(self, x_test, noise_variance=0):
         """
