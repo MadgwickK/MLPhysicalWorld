@@ -191,3 +191,5 @@ def estimate_params(observed_times, magnifications, bounds, magnification_errors
             return mean_function_theta(t.flatten(), [t_E, u_min], t_0)
 
     return t_E, t_E_error, t_0, t_0_error, u_min, u_min_error
+
+

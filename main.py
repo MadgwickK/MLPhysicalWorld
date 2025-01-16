@@ -1,3 +1,4 @@
+
 import numpy as np
 from gaussian_process import GaussianProcess, matern52_kernel
 from bayes_opt import BayesianOptimisation, expected_improvement

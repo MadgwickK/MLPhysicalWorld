@@ -1,3 +1,4 @@
+
 """
 Implementation of Bayesian optimisation to find parameters given observed microlensing data.
 """
@@ -203,3 +204,4 @@ class BayesianOptimisation:
         current_best_losses = list(accumulate(-self.y_samples, max))
         plt.plot(current_best_losses)
         plt.show()
+
