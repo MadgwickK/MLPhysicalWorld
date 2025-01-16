@@ -1,6 +1,7 @@
 import numpy as np
 from argh.constants import DEST_FUNCTION
-
+from matplotlib import pyplot as plt
+import pandas as pd
 
 def get_mag(u):
     """Computes magnification for given u value"""
@@ -91,3 +92,63 @@ def noisy_data_calc(low,upper,theta,noise,number,t_0=0):
     ts = np.random.uniform(low,upper,number)
     mags = mean_function_theta(ts,theta,t_0) + np.random.normal(0,noise,number)
     return ts, mags
+
+
+
+
+
+
+# ------------------also include some functional codes here (apart from the definition of lensmodel)------------------
+
+def read_and_convert(file_name, I_0, plot=False):
+    """
+    This function reads a file for microlens event (.dat) and converts the magnitude to magnification.
+    -------------------------
+    Parameters:
+    file_name (str): The name of the file to read.
+    I_0 (float): The reference magnitude. (can be found in the data webpage and zip file)
+    plot (bool): Whether to plot the data (magnification vs. time) or not.
+    -------------------------
+    Returns:
+    data (DataFrame): The data read from the file with an additional column for magnification.
+    The columns are: Timestamp, Value, Error, seeing, sky_level, Magnification.
+    """
+    column_names = ["Timestamp", "Value", "Error", "seeing", "sky_level"]
+    data = pd.read_csv(
+        file_name,
+        sep="\s+",
+        names=column_names,
+        header=None,
+    )
+    delta_I = data["Value"] - I_0
+    data["Magnification"] = 10 ** (delta_I / -2.5)
+    if plot:
+        plt.figure()
+        plt.plot(data["Timestamp"], data["Magnification"], ".", label="Magnification")
+        plt.xlabel("Time (HJD)")
+        plt.ylabel("Magnitude")
+        plt.show()
+    return data
+
+
+def plot_final_params(observed_times, magnifications, best_parameters):
+    """
+    Plot the predicted magnification function and the observed data.
+    Args:
+        observed_times (ndarray): Times observed.
+        magnifications (ndarray): Magnifications observed.
+        best_parameters (list): Parameters being plotted.
+
+    """
+    # Create fine mesh of times from the first observation to the last observation
+    times = np.linspace(np.min(observed_times), np.max(observed_times), 10000)
+
+    # Calculate predicted magnifications
+    theta = [best_parameters[0], best_parameters[2]]
+    mags = mean_function_theta(times, theta, best_parameters[1])
+
+    # Plot prediction with the observed data
+    plt.plot(times, mags, color='blue')
+    plt.scatter(observed_times, magnifications, color='red')
+    plt.savefig(f'BO_plot/final_params{theta}.png', dpi=300)
+    plt.show()

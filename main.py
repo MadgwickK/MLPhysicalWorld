@@ -5,7 +5,7 @@ from bayes_opt import BayesianOptimisation, expected_improvement
 from samplers import gaussian_sobol
 from objectives import mse
 import matplotlib.pyplot as plt
-from parameter_estimation_2 import estimate_params
+from parameter_estimation import estimate_params
 from lensmodel import mean_function_theta
 
 X, Y = noisy_data_calc(-40, 40, [20, 0.5], 0.1, 15, t_0=0)
@@ -62,6 +62,7 @@ def plot_final_params(observed_times, magnifications, best_parameters):
     # Plot prediction with the observed data
     plt.plot(times, mags, color='blue')
     plt.scatter(observed_times, magnifications, color='red')
+    plt.savefig(f'BO_plot/final_params{theta}.png', dpi=300)
     plt.show()
 
 

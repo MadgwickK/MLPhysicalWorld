@@ -141,11 +141,15 @@ def mcmc_results(sampler, burnin=0):
         ax.yaxis.set_label_coords(-0.1, 0.5)
 
     axes[-1].set_xlabel("step number")
-    plt.savefig("MCMC_plot/chain_plot.png")
+    plt.savefig(f"MCMC_plot/chain_plot{
+        params[1,0]:.2f}_{params[1,1]:.2f}_{params[1,2]:.2f
+    }.png")
     plt.show()
 
     fig = corner.corner(flat_samples, labels=labels, truths=params[1])
-    plt.savefig("MCMC_plot/corner_plot.png")
+    plt.savefig(f"MCMC_plot/corner_plot{
+        params[1,0]:.2f}_{params[1,1]:.2f}_{params[1,2]:.2f
+                                            }.png") 
     plt.show()
 
     print(

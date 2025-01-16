@@ -178,9 +178,14 @@ class BayesianOptimisation:
 
         plt.plot(t, magnification, color='blue')
         plt.scatter(self.observed_times, self.magnifications, color='red')
+        plt.savefig(f'BO_plot/final_params{best_parameters}.png', dpi=300)
         plt.show()
 
     def regret_plot(self):
         current_best_losses = list(accumulate(-self.y_samples, max))
         plt.plot(current_best_losses)
+        plt.xlabel('Iteration')
+        plt.ylabel('Current Best Loss')
+        plt.title('Regret Plot')
+        plt.savefig('BO_plot/regret_plot.png', dpi=300)
         plt.show()
