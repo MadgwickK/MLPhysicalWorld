@@ -82,7 +82,7 @@ def sobol_sampling(self, num_samples=2 ** 10):
     return samples
 
 
-def gaussian_sampling(self, num_samples=2 ** 10):
+def gaussian_sampling(self, num_samples=2 ** 16):
     """
         Samples from a gaussian distribution.
         Args:
@@ -151,3 +151,4 @@ def gaussian_sobol(self, num_samples=2 ** 10):
     # Apply inverse Gaussian CDF to Sobol samples
     gaussian_samples = norm.ppf(sobol_samples, loc=means, scale=std_devs)
     return gaussian_samples
+

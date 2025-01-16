@@ -2,12 +2,13 @@ import numpy as np
 from gaussian_process import GaussianProcess, matern52_kernel
 from lensmodel import mean_function_theta
 
-def fit_mag(observed_times, magnifications, mean_function=None):
+def fit_mag(observed_times, magnifications, magnification_errors=None, mean_function=None):
     """
     Fits a Gaussian process to the observed times and magnifications.
     Args:
         observed_times (ndarray): Times observed.
         magnifications (ndarray): Magnifications observed.
+        magnification_errors (ndarray): Error on the observed magnifications.
         mean_function (callable): Function encoding prior information about the funciton being fit.
 
     Returns:
@@ -17,7 +18,7 @@ def fit_mag(observed_times, magnifications, mean_function=None):
     # Fits the Gaussian process to the observed data using the mean function
     mag_gaussian = GaussianProcess(kernel=matern52_kernel, sigma_l=2, sigma_f=1,
                                    mean_function=mean_function)
-    mag_gaussian.fit(observed_times.reshape(-1, 1), magnifications, noise_variance=0.01)
+    mag_gaussian.fit(observed_times.reshape(-1, 1), magnifications, y_errors=magnification_errors, noise_variance=0.01)
     return mag_gaussian
 
 
@@ -148,7 +149,7 @@ def estimate_t_e(observed_times, magnifications, t_0, t_0_error, u_min, u_min_er
     return t_E, t_E_error
 
 
-def estimate_params(observed_times, magnifications, bounds, mean_function=None):
+def estimate_params(observed_times, magnifications, bounds, magnification_errors=None):
     """
     Randomly selects data to predict the parameters 20 times such that an error is predicted using
     bootstrapping.
@@ -156,7 +157,7 @@ def estimate_params(observed_times, magnifications, bounds, mean_function=None):
         observed_times (ndarray): Times observed.
         magnifications (ndarray): Magnifications observed.
         bounds (dict): Dictionary of bounds for the parameters being fitted.
-        mean_function (callable): Function encoding prior information about the funciton being fit.
+        magnification_errors (ndarray): Error on the observed magnifications.
 
     Returns:
         t_E (float): Estimated t_E.
@@ -169,17 +170,26 @@ def estimate_params(observed_times, magnifications, bounds, mean_function=None):
     t_0, t_0_error, mag_peak, mag_peak_error = 0, 0, 0, 0
     u_min, u_min_error = 0, 0
     t_E, t_E_error = 0, 0
+    mean_function = None
     # Run twice, once for an initial estimation and then again using the inital estimation as
     # a mean function such that the GP has some knowledge about the shape of the function
     for i in range(2):
         # Fit Gaussian process to datapoints
-        mag_gaussian = fit_mag(observed_times, magnifications, mean_function)
+        if magnification_errors is not None:
+            mag_gaussian = fit_mag(observed_times, magnifications,
+                                   magnification_errors=magnification_errors,
+                                   mean_function=mean_function)
+        else:
+            mag_gaussian = fit_mag(observed_times, magnifications, mean_function=mean_function)
 
         # Predict parameters for the chosen data using Gaussian process
         t_0, t_0_error, mag_peak, mag_peak_error = estimate_t_0(mag_gaussian, bounds)
         u_min, u_min_error = estimate_u_min(mag_peak, mag_peak_error)
-        t_E, t_E_error = estimate_t_e(observed_times, magnifications, t_0, t_0_error, u_min, u_min_error)
+        t_E, t_E_error = estimate_t_e(observed_times, magnifications, t_0, t_0_error,
+                                      u_min, u_min_error)
         def mean_function(t):
             return mean_function_theta(t.flatten(), [t_E, u_min], t_0)
 
     return t_E, t_E_error, t_0, t_0_error, u_min, u_min_error
+
+
