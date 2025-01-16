@@ -62,10 +62,14 @@ def plot_final_params(observed_times, magnifications, best_parameters, mags_erro
 
     # Plot prediction with the observed data
     plt.plot(times, mags, color='blue')
+
     if mags_error is not None:
         plt.errorbar(observed_times, magnifications, mags_error, fmt='.', color='red')
     else:
         plt.scatter(observed_times, magnifications, color='red')
+
+    plt.savefig(f'BO_plot/final_params{theta}.png', dpi=300)
+
     plt.show()
 
 
