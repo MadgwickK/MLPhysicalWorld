@@ -1,7 +1,7 @@
-
 """
 Implementation of Bayesian optimisation to find parameters given observed microlensing data.
 """
+
 import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt
@@ -80,6 +80,7 @@ class BayesianOptimisation:
         y_samples (ndarray): Previously sampled losses.
         current_best_index (int): Index of the current best point in the x and y sample arrays.
     """
+
     def __init__(self, surrogate, acquisition, objective, bounds, sampler=None):
         self.surrogate = surrogate
         self.acquisition = acquisition
@@ -100,7 +101,6 @@ class BayesianOptimisation:
         self.y_err = np.empty((0, 1))
         self.current_best_index = None
 
-
     def _propose_location(self):
         """
         Proposes a new sample with the user defined sampler function and the acquisition function.
@@ -108,7 +108,7 @@ class BayesianOptimisation:
             best_candidate (ndarray): Best candidate point.
         """
         # Generate candidates using the given sampling function
-        candidates = self.sampler(self, num_samples=(2 ** 10))
+        candidates = self.sampler(self, num_samples=(2**10))
 
         # Calculate the expected improvement of each sample
         exp_imp = self.acquisition(candidates, self.y_samples, self.surrogate)
@@ -133,8 +133,9 @@ class BayesianOptimisation:
         if self.mag_err is None:
             y_next = self.objective(self.observed_times, self.magnifications, x_next)
         else:
-            y_next, y_err = self.objective(self.observed_times, self.magnifications,
-                                           x_next, self.mag_err)
+            y_next, y_err = self.objective(
+                self.observed_times, self.magnifications, x_next, self.mag_err
+            )
             self.y_err = np.append(self.y_err, y_err)
 
         # Update observed samples
@@ -166,10 +167,13 @@ class BayesianOptimisation:
         self.x_samples = np.vstack((self.x_samples, uniform_random(self, 20)))
         for sample in self.x_samples:
             if self.mag_err is None:
-                y_sample = self.objective(self.observed_times, self.magnifications, sample)
+                y_sample = self.objective(
+                    self.observed_times, self.magnifications, sample
+                )
             else:
-                y_sample, y_err = self.objective(self.observed_times, self.magnifications,
-                                                 sample, self.mag_err)
+                y_sample, y_err = self.objective(
+                    self.observed_times, self.magnifications, sample, self.mag_err
+                )
                 self.y_err = np.append(self.y_err, y_err)
             self.y_samples = np.append(self.y_samples, y_sample)
 
@@ -194,14 +198,15 @@ class BayesianOptimisation:
         t_min = np.min(self.observed_times)
         t_max = np.max(self.observed_times)
         t = np.linspace(t_min, t_max, 10000)
-        magnification = FUNCTION(t, [best_parameters[0], best_parameters[2]], best_parameters[1])
+        magnification = FUNCTION(
+            t, [best_parameters[0], best_parameters[2]], best_parameters[1]
+        )
 
-        plt.plot(t, magnification, color='blue')
-        plt.scatter(self.observed_times, self.magnifications, color='red')
+        plt.plot(t, magnification, color="blue")
+        plt.scatter(self.observed_times, self.magnifications, color="red")
         plt.show()
 
     def regret_plot(self):
         current_best_losses = list(accumulate(-self.y_samples, max))
         plt.plot(current_best_losses)
         plt.show()
-

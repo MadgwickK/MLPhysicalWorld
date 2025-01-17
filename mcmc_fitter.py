@@ -1,5 +1,5 @@
 import numpy as np
-from lensmodel_old import mean_function_theta, noisy_data_calc
+from lensmodel import mean_function_theta, noisy_data_calc
 import emcee
 import corner
 import gaussian_process as GP

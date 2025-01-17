@@ -2,7 +2,10 @@ import numpy as np
 from gaussian_process import GaussianProcess, matern52_kernel
 from lensmodel import mean_function_theta
 
-def fit_mag(observed_times, magnifications, magnification_errors=None, mean_function=None):
+
+def fit_mag(
+    observed_times, magnifications, magnification_errors=None, mean_function=None
+):
     """
     Fits a Gaussian process to the observed times and magnifications.
     Args:
@@ -16,9 +19,15 @@ def fit_mag(observed_times, magnifications, magnification_errors=None, mean_func
     """
 
     # Fits the Gaussian process to the observed data using the mean function
-    mag_gaussian = GaussianProcess(kernel=matern52_kernel, sigma_l=2, sigma_f=1,
-                                   mean_function=mean_function)
-    mag_gaussian.fit(observed_times.reshape(-1, 1), magnifications, y_errors=magnification_errors, noise_variance=0.01)
+    mag_gaussian = GaussianProcess(
+        kernel=matern52_kernel, sigma_l=2, sigma_f=1, mean_function=mean_function
+    )
+    mag_gaussian.fit(
+        observed_times.reshape(-1, 1),
+        magnifications,
+        y_errors=magnification_errors,
+        noise_variance=0.01,
+    )
     return mag_gaussian
 
 
@@ -36,10 +45,12 @@ def estimate_t_0(gaussian_process, bounds):
         mag_peak_error (float): Error on magnification peak.
     """
     # Create a fine grid of time values over the time space
-    t_space = np.linspace(bounds['t_0'][0], bounds['t_0'][1], 10000)
+    t_space = np.linspace(bounds["t_0"][0], bounds["t_0"][1], 10000)
 
     # Predict magnifications at each point of the fine grid
-    pred_mag, cov = gaussian_process.predict(t_space.reshape(-1, 1), noise_variance=0.01)
+    pred_mag, cov = gaussian_process.predict(
+        t_space.reshape(-1, 1), noise_variance=0.01
+    )
     errors = np.sqrt(np.diag(cov))
 
     # Find the maximum predicted magnification
@@ -73,11 +84,11 @@ def estimate_u_min(mag_peak, mag_peak_error):
         u_min_error (float): Estimated error on u_min.
     """
     # Computes a predicted u_min
-    u_min_sqrt = 2 * ((np.abs(mag_peak) / np.sqrt(mag_peak ** 2 - 1)) - 1)
+    u_min_sqrt = 2 * ((np.abs(mag_peak) / np.sqrt(mag_peak**2 - 1)) - 1)
     u_min = np.sqrt(u_min_sqrt)
 
     # Compute the error on u_min
-    u_min_der = -1 / (np.power(mag_peak ** 2 - 1, 3/2) * u_min)
+    u_min_der = -1 / (np.power(mag_peak**2 - 1, 3 / 2) * u_min)
     u_min_error = np.abs(u_min_der * mag_peak_error)
 
     return u_min, u_min_error
@@ -100,8 +111,10 @@ def estimate_t_e(observed_times, magnifications, t_0, t_0_error, u_min, u_min_er
         t_E_error (float): Estimated error on t_E.
     """
     # Calculate bound on magnifications such that the calculated t_E exists
-    u_min_fact = ((u_min**2 / 2) + 1)**2
-    max_mag = np.sqrt(u_min_fact / (u_min_fact - 1)) - 1e-4 # jitter value for numerical stability
+    u_min_fact = ((u_min**2 / 2) + 1) ** 2
+    max_mag = (
+        np.sqrt(u_min_fact / (u_min_fact - 1)) - 1e-4
+    )  # jitter value for numerical stability
     valid_mask = (magnifications > 1) & (magnifications < max_mag)
 
     # Use bound on magnifications to eliminate all values in pred_mag and t_space where t_E doesn't exist
@@ -110,9 +123,9 @@ def estimate_t_e(observed_times, magnifications, t_0, t_0_error, u_min, u_min_er
 
     # Predict t_E for each predicted magnification
     delta_t = observed_times - t_0
-    mag_term = magnifications ** 2 - 1
-    denominator = 4 - (u_min ** 2) * (u_min ** 2 + 4) * mag_term
-    numerator = 2 * magnifications * np.sqrt(mag_term) + (u_min ** 2 + 2) * mag_term
+    mag_term = magnifications**2 - 1
+    denominator = 4 - (u_min**2) * (u_min**2 + 4) * mag_term
+    numerator = 2 * magnifications * np.sqrt(mag_term) + (u_min**2 + 2) * mag_term
     t_E_samples_sq = (delta_t**2) * (numerator / denominator)
 
     # Makes sure there is no negative root, apply mask to every used array
@@ -129,8 +142,12 @@ def estimate_t_e(observed_times, magnifications, t_0, t_0_error, u_min, u_min_er
     t_E_samples = np.sqrt(t_E_samples_sq)
 
     # Propagate error on u_min for every t_E
-    numerator_term = ((u_min ** 2) * (4*magnifications*np.sqrt(mag_term) + mag_term * u_min ** 2) + 4*numerator + 4)
-    denominator_term = (denominator ** 2) * t_E_samples
+    numerator_term = (
+        (u_min**2) * (4 * magnifications * np.sqrt(mag_term) + mag_term * u_min**2)
+        + 4 * numerator
+        + 4
+    )
+    denominator_term = (denominator**2) * t_E_samples
     t_E_samples_der_u_min = np.sqrt((delta_t**2) * (numerator_term / denominator_term))
     t_E_sample_errors_u_min = t_E_samples_der_u_min * u_min_error
 
@@ -176,20 +193,25 @@ def estimate_params(observed_times, magnifications, bounds, magnification_errors
     for i in range(2):
         # Fit Gaussian process to datapoints
         if magnification_errors is not None:
-            mag_gaussian = fit_mag(observed_times, magnifications,
-                                   magnification_errors=magnification_errors,
-                                   mean_function=mean_function)
+            mag_gaussian = fit_mag(
+                observed_times,
+                magnifications,
+                magnification_errors=magnification_errors,
+                mean_function=mean_function,
+            )
         else:
-            mag_gaussian = fit_mag(observed_times, magnifications, mean_function=mean_function)
+            mag_gaussian = fit_mag(
+                observed_times, magnifications, mean_function=mean_function
+            )
 
         # Predict parameters for the chosen data using Gaussian process
         t_0, t_0_error, mag_peak, mag_peak_error = estimate_t_0(mag_gaussian, bounds)
         u_min, u_min_error = estimate_u_min(mag_peak, mag_peak_error)
-        t_E, t_E_error = estimate_t_e(observed_times, magnifications, t_0, t_0_error,
-                                      u_min, u_min_error)
+        t_E, t_E_error = estimate_t_e(
+            observed_times, magnifications, t_0, t_0_error, u_min, u_min_error
+        )
+
         def mean_function(t):
             return mean_function_theta(t.flatten(), [t_E, u_min], t_0)
 
     return t_E, t_E_error, t_0, t_0_error, u_min, u_min_error
-
-
