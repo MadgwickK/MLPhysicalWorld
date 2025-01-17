@@ -1,7 +1,4 @@
 import numpy as np
-from argh.constants import DEST_FUNCTION
-from matplotlib import pyplot as plt
-import pandas as pd
 
 
 def get_mag(u):
@@ -11,7 +8,7 @@ def get_mag(u):
 
 def get_r_E(M, d_L, d_S):
     """Computes Einstein Radius, r_E. Inputs: Mass of lens, M ; Distance to lens, d_L; Distance to source, d_S"""
-    return np.sqrt(4 * 6.67e-11 * M * d_L * (d_S - d_L) / (9e16 * d_S))
+    return np.sqrt(4 * (6.67e-11) * M * d_L * (d_S - d_L) / (9e16 * d_S))
 
 
 def get_u(t, r_E, v_T, u_min=1, t_0=0):
@@ -21,66 +18,19 @@ def get_u(t, r_E, v_T, u_min=1, t_0=0):
     return np.sqrt(u_min**2 + (v_T * (t - t_0) / r_E) ** 2)
 
 
-def mean_function(t, M, d_L, d_S, v_T, u_min=1, t_0=0):
-    """Computes the mean magnification function from set parameters.
-    t is an array of times in units of days,
-    M the mass of the lens in units of solar masses,
-    d_L and d_S the distance to the lens and source respectively in units of parsecs,
-    v_T the transverse velocity of the lens with respect to the source in units of km s^-1.
-    """
-    if d_L > d_S:
-        raise ValueError("Distance to lens, d_L, cannot exceed distance to source, d_S")
+def mean_function_theta(t, theta):
+    """A mean function with no predicted degeneracy.
+    Theta parameters:
+    t_E: Einstein time in units of days
+    u_min: Max magnitude of the microlensing event
+    t_0: Central peak of the microlensing event"""
 
-    # Adjusting to new units
-    tnew = t * 24 * (60**2)
-    t_0new = t_0 * 24 * (60**2)
-    Mnew = M * 1.99e30
-    d_Lnew = d_L * 3.086e16
-    d_Snew = d_S * 3.086e16
-    v_Tnew = v_T * 1e3
-
-    r_E = get_r_E(Mnew, d_Lnew, d_Snew)
-    us = get_u(tnew, r_E, v_Tnew, u_min, t_0new)
-    return get_mag(us)
-
-
-def mean_function_with_planet(t, M, d_L, d_S, v_T, M_p, r_P, u_min=1, t_0=0):
-    """Computes the mean magnification function with a planet present. All parameters same as original mean function.
-    t is an array of times in units of days,
-    M the mass of the lens in units of solar masses,
-    d_L and d_S the distance to the lens and source respectively in units of parsecs,
-    v_T the transverse velocity
-    of the lens with respect to the source in units of km s^-1.
-    Additional planetary parameters: Mass of planet, M_p is in Jupiter masses.
-    Transverse distance between star and
-    planet, r_P, is in units of Astronomical Units and can be positive or negative.
-    We assume the orbital radius is negligible compared to the source/lens distance."""
-
-    M_pnew = M_p * 1.898e27 / 1.99e30
-    t_0p = r_P * 1.496e8 / (v_T * 24 * (60**2))
-
-    star_mag = mean_function(t, M, d_L, d_S, v_T, u_min, t_0)
-    planet_mag = mean_function(t, M_pnew, d_L, d_S, v_T, u_min, t_0=t_0p)
-    return star_mag + planet_mag - 1
-
-
-def mean_function_theta(t, theta, t_0=0):
-    """t is time in units of days
-    Theta is a tuple of all parameters, in the following order:
-    d_L: Distance to source, units of parsecs
-    d_S: Distance to lens, units of parsecs
-    v_M_ratio: Ratio between transverse velocity of lens and square root of the lens mass. Units of km s^-1 M_sun^-1/2
-    The two variables are degenerate so can't be individually fitted, hence the need for the ratio
-    u_min: Max magnification of object, unitless
-    t_0 is a variable we will not be fitting over, set it at zero by default"""
-
-    # Adjusting to new units and unpacking theta
-    tnew = t * 24 * (60**2)
     t_E = theta[0] * 24 * (60**2)
-    t_0new = t_0 * 24 * (60**2)
     u_min = theta[1]
+    t = t * 24 * (60**2)
+    t_0 = theta[2] * 24 * (60**2)
 
-    us = np.sqrt(u_min**2 + ((tnew - t_0new) / t_E) ** 2)
+    us = np.sqrt(u_min**2 + ((t - t_0) / t_E) ** 2)
     return get_mag(us)
 
 
@@ -89,68 +39,77 @@ def noisy_data_calc(low, upper, theta, noise, number, t_0=0):
     their corresponding magnification.
     low: Lower time bound of the dataset, in units of days. Must be negative
     upper: Upper time bound of the dataset, in units of days. Must be positive
-    theta: Parameters of the lightcurve model - d_L, D_S, v_M_ratio, u_min
+    theta: Parameters of the lightcurve model - t_E, u_min, t_0
     noise: Standard deviation of the gaussian distribution from which noise is sampled
     number: Number of samples to be selected.
-    t_0: Peak of lightcurve. Default 0"""
+    t_0: Peak of lightcurve. Default 0
+
+    ---- returns ----
+    ts: Array of t values generated randomly
+    mags: Array of noisy magnification values
+    """
 
     ts = np.random.uniform(low, upper, number)
-    mags = mean_function_theta(ts, theta, t_0) + np.random.normal(0, noise, number)
+    mags = mean_function_theta(ts, theta) + np.random.normal(0, noise, number)
     return ts, mags
 
 
-# ------------------also include some functional codes here (apart from the definition of lensmodel)------------------
+def parallax_data_calc(low, upper, theta_s, noise_s, no_s, theta_e, noise_e, no_e):
+    """Generates two lightcurves of the same microlensing event: measured from space, and from earth. There will be small
+    differences between the two corresponding to the parallax.
 
-
-def read_and_convert(file_name, I_0, plot=False):
-    """
-    This function reads a file for microlens event (.dat) and converts the magnitude to magnification.
-    -------------------------
     Parameters:
-    file_name (str): The name of the file to read.
-    I_0 (float): The reference magnitude. (can be found in the data webpage and zip file)
-    plot (bool): Whether to plot the data (magnification vs. time) or not.
-    -------------------------
+        low (float): Lower bound of time interval
+        upper (float): Upper bound of time interval
+        theta_s (ndarray): Parameters of space lightcurve - t_E, u_0, t_0
+        noise_s (float): Standard deviation of Gaussian noise of space magnification measurements
+        no_s (int): Number of datapoints in space lightcurve
+        theta_e (ndarray): Parameters of Earth lightcurve - t_E, u_0, t_0
+        noise_e (float): Standard deviation of Gaussian noise of Earth magnification measurements
+        no_e (int): Number of datapoints in Earth lightcurve
+
     Returns:
-    data (DataFrame): The data read from the file with an additional column for magnification.
-    The columns are: Timestamp, Value, Error, seeing, sky_level, Magnification.
+        t_s (ndarray): array of time values for space measurements, in units of days
+        mag_s (ndarray): array of magnification values for space measurements
+        t_e (ndarray): array of time values for Earth measurements, in units of days
+        mag_e (ndarray): array of magnification values for Earth measurements
     """
-    column_names = ["Timestamp", "Value", "Error", "seeing", "sky_level"]
-    data = pd.read_csv(
-        file_name,
-        sep="\s+",
-        names=column_names,
-        header=None,
-    )
-    delta_I = data["Value"] - I_0
-    data["Magnification"] = 10 ** (delta_I / -2.5)
-    if plot:
-        plt.figure()
-        plt.plot(data["Timestamp"], data["Magnification"], ".", label="Magnification")
-        plt.xlabel("Time (HJD)")
-        plt.ylabel("Magnitude")
-        plt.show()
-    return data
+    t_s = np.linspace(low, upper, no_s) + np.random.normal(0, 1, no_s)
+    mag_s = mean_function_theta(t_s, theta_s) + np.random.normal(0, noise_s, no_s)
+    t_e = np.linspace(low, upper, no_e) + np.random.normal(0, 0.1, no_e)
+    mag_e = mean_function_theta(t_e, theta_e) + np.random.normal(0, noise_e, no_e)
+    return t_s, mag_s, t_e, mag_e
 
 
-def plot_final_params(observed_times, magnifications, best_parameters):
+def parallax_resolver(theta_s, theta_e, error_s, error_e, distance=1):
+    """To be ran after finding the parameters from the space-based lightcurve and earth-based lightcurve.
+
+    Parameters:
+        theta_s (ndarray): Parameters of the lightcurve in space - t_E, u_0, t_0
+        theta_e (ndarray): Parameters of the lightcurve on Earth - t_E, u_0, t_0
+        error_s (ndarray): Errors on the space lightcurve parameters
+        error_e (ndarray): Errors on the earth lightcurve parameters
+        distance (float): Distance between Earth and the space telescope, units of AU. Default = 1
+
+    Returns:
+        r_E (ndarray): Einstein Radius, in units of AU, and associated error
+        v_T (ndarray): Transverse velocity of object, in units of km s^-1, and associated error
     """
-    Plot the predicted magnification function and the observed data.
-    Args:
-        observed_times (ndarray): Times observed.
-        magnifications (ndarray): Magnifications observed.
-        best_parameters (list): Parameters being plotted.
 
-    """
-    # Create fine mesh of times from the first observation to the last observation
-    times = np.linspace(np.min(observed_times), np.max(observed_times), 10000)
+    delta_t_0 = (theta_s[2] - theta_e[2]) ** 2
+    delta_t_0_err = 2 * np.sqrt(delta_t_0 * (error_s[2] ** 2 + error_e[2] ** 2))
+    delta_u_0 = (theta_s[1] - theta_e[1]) ** 2
+    delta_u_0_err = 2 * np.sqrt(delta_u_0 * (error_s[1] ** 2 + error_e[1] ** 2))
 
-    # Calculate predicted magnifications
-    theta = [best_parameters[0], best_parameters[2]]
-    mags = mean_function_theta(times, theta, best_parameters[1])
+    r_E = distance / (np.sqrt(delta_t_0 + delta_u_0))
+    r_E_err = r_E * np.abs(0.5 * np.sqrt(delta_t_0_err**2 + delta_u_0_err**2))
+    t_E = (theta_s[0] + theta_e[0]) / 2
+    t_E_err = 1 / 2 * np.sqrt(error_s[0] ** 2 + error_e[0] ** 2)
 
-    # Plot prediction with the observed data
-    plt.plot(times, mags, color="blue")
-    plt.scatter(observed_times, magnifications, color="red")
-    plt.savefig(f"BO_plot/final_params{theta}.png", dpi=300)
-    plt.show()
+    v_T = r_E * 1.496e8 / (t_E * 60**2 * 24)
+    v_T_err = v_T * np.sqrt((r_E / r_E_err) ** 2 + (t_E / t_E_err) ** 2)
+    if v_T > 3e5:
+        print(
+            "This combination gives a transverse velocity greater than the speed of light."
+        )
+    return np.array([r_E, r_E_err]), np.array([v_T, v_T_err])
