@@ -1,4 +1,3 @@
-
 import numpy as np
 from gaussian_process import GaussianProcess, matern52_kernel
 from bayes_opt import BayesianOptimisation, expected_improvement
@@ -8,13 +7,13 @@ import matplotlib.pyplot as plt
 from parameter_estimation import estimate_params
 from lensmodel import mean_function_theta
 
-I_0 = 19.956 - 0.361*2
+I_0 = 19.956 - 0.361 * 2
 f_s = 0.528
 
 parameter_bounds = {
-    't_E':      [0.01, 700],    # days
-    't_0':      [-5, 5],        # days (placeholder, updated in the code)
-    'u_min':    [0, 4]          # unitless
+    "t_E": [0.01, 700],  # days
+    "t_0": [-5, 5],  # days (placeholder, updated in the code)
+    "u_min": [0, 4],  # unitless
 }
 
 
@@ -32,7 +31,9 @@ def create_mean_function(gaussian_process, observed_times, magnifications):
         constant_mean_function (function): Mean function for the objective function.
     """
     # Predict the magnifications at the observed times
-    pred_mag, cov = gaussian_process.predict(observed_times.reshape(-1, 1), noise_variance=0.01)
+    pred_mag, cov = gaussian_process.predict(
+        observed_times.reshape(-1, 1), noise_variance=0.01
+    )
 
     # Calculate the mean squared error between the predicted magnifications and the observed values
     loss = np.mean((magnifications - pred_mag) ** 2)
@@ -62,11 +63,11 @@ def plot_final_params(observed_times, magnifications, best_parameters, mags_erro
     mags = mean_function_theta(times, theta, best_parameters[1])
 
     # Plot prediction with the observed data
-    plt.plot(times, mags, color='blue')
+    plt.plot(times, mags, color="blue")
     if mags_error is not None:
-        plt.errorbar(observed_times, magnifications, mags_error, fmt='.', color='red')
+        plt.errorbar(observed_times, magnifications, mags_error, fmt=".", color="red")
     else:
-        plt.scatter(observed_times, magnifications, color='red')
+        plt.scatter(observed_times, magnifications, color="red")
     plt.show()
 
 
@@ -104,12 +105,12 @@ def main(observed_times, magnifications, magnification_errors, bounds):
     sigma = 1
 
     # Change bounds on t_0 before estimating
-    bounds['t_0'] = [np.min(observed_times), np.max(observed_times)]
+    bounds["t_0"] = [np.min(observed_times), np.max(observed_times)]
 
     # Estimate parameters using bootstrapping
-    t_E, t_E_error, t_0, t_0_error, u_min, u_min_error = estimate_params(observed_times,
-                                                                         magnifications, bounds,
-                                                                         magnification_errors)
+    t_E, t_E_error, t_0, t_0_error, u_min, u_min_error = estimate_params(
+        observed_times, magnifications, bounds, magnification_errors
+    )
 
     print(
         "Initial predictions:\n"
@@ -119,9 +120,9 @@ def main(observed_times, magnifications, magnification_errors, bounds):
     )
 
     # Changes bounds to take into account predictions
-    bounds['t_0'] = [t_0 - sigma*t_0_error, t_0 + sigma*t_0_error]
-    bounds['t_E'] = [t_E - sigma*t_E_error, t_E + sigma*t_E_error]
-    bounds['u_min'] = [u_min - sigma*u_min_error, u_min + sigma*u_min_error]
+    bounds["t_0"] = [t_0 - sigma * t_0_error, t_0 + sigma * t_0_error]
+    bounds["t_E"] = [t_E - sigma * t_E_error, t_E + sigma * t_E_error]
+    bounds["u_min"] = [u_min - sigma * u_min_error, u_min + sigma * u_min_error]
 
     parameter_samples = []
     for i in range(10):
@@ -129,9 +130,13 @@ def main(observed_times, magnifications, magnification_errors, bounds):
         gp = GaussianProcess(kernel=matern52_kernel, sigma_l=1, sigma_f=1)
 
         # Define Bayesian optimisation
-        optimiser = BayesianOptimisation(surrogate=gp, acquisition=expected_improvement,
-                                         objective=log_likelihood, bounds=parameter_bounds,
-                                         sampler=gaussian_sampling)
+        optimiser = BayesianOptimisation(
+            surrogate=gp,
+            acquisition=expected_improvement,
+            objective=log_likelihood,
+            bounds=parameter_bounds,
+            sampler=gaussian_sampling,
+        )
 
         optimiser.mag_err = magnification_errors
 
@@ -156,10 +161,12 @@ def main(observed_times, magnifications, magnification_errors, bounds):
         f"    t_E: {best_parameters[0]} \u00B1 {best_parameter_errors[0]}"
     )
 
-    plot_final_params(observed_times, magnifications, best_parameters, mags_error=magnification_errors)
+    plot_final_params(
+        observed_times, magnifications, best_parameters, mags_error=magnification_errors
+    )
 
 
-time, mags, mags_error = read_and_convert("sample_data_OGLE/OGLE-2023-BLG-0002.dat", I_0, f_s)
+time, mags, mags_error = read_and_convert(
+    "sample_data_OGLE/OGLE-2023-BLG-0002.dat", I_0, f_s
+)
 main(time, mags, mags_error, parameter_bounds)
-
-

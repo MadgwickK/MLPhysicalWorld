@@ -3,9 +3,10 @@ from argh.constants import DEST_FUNCTION
 from matplotlib import pyplot as plt
 import pandas as pd
 
+
 def get_mag(u):
     """Computes magnification for given u value"""
-    return (u ** 2 + 2) / (u * np.sqrt(u ** 2 + 4))
+    return (u**2 + 2) / (u * np.sqrt(u**2 + 4))
 
 
 def get_r_E(M, d_L, d_S):
@@ -15,8 +16,9 @@ def get_r_E(M, d_L, d_S):
 
 def get_u(t, r_E, v_T, u_min=1, t_0=0):
     """Computes u at a certain time, assuming constant transverse velocity. Inputs: time, t; Einstein Radius, r_E;
-    Transverse velocity v_T; minimum u value, u_min set at 0 by default; time of peak, t_0 set at 0 by default"""
-    return np.sqrt(u_min ** 2 + (v_T * (t - t_0) / r_E) ** 2)
+    Transverse velocity v_T; minimum u value, u_min set at 0 by default; time of peak, t_0 set at 0 by default
+    """
+    return np.sqrt(u_min**2 + (v_T * (t - t_0) / r_E) ** 2)
 
 
 def mean_function(t, M, d_L, d_S, v_T, u_min=1, t_0=0):
@@ -24,13 +26,14 @@ def mean_function(t, M, d_L, d_S, v_T, u_min=1, t_0=0):
     t is an array of times in units of days,
     M the mass of the lens in units of solar masses,
     d_L and d_S the distance to the lens and source respectively in units of parsecs,
-    v_T the transverse velocity of the lens with respect to the source in units of km s^-1."""
+    v_T the transverse velocity of the lens with respect to the source in units of km s^-1.
+    """
     if d_L > d_S:
         raise ValueError("Distance to lens, d_L, cannot exceed distance to source, d_S")
 
-    #Adjusting to new units
-    tnew = t * 24 * (60 ** 2)
-    t_0new = t_0 * 24 * (60 ** 2)
+    # Adjusting to new units
+    tnew = t * 24 * (60**2)
+    t_0new = t_0 * 24 * (60**2)
     Mnew = M * 1.99e30
     d_Lnew = d_L * 3.086e16
     d_Snew = d_S * 3.086e16
@@ -54,51 +57,50 @@ def mean_function_with_planet(t, M, d_L, d_S, v_T, M_p, r_P, u_min=1, t_0=0):
     We assume the orbital radius is negligible compared to the source/lens distance."""
 
     M_pnew = M_p * 1.898e27 / 1.99e30
-    t_0p = r_P * 1.496e8 / (v_T * 24 * (60 ** 2))
+    t_0p = r_P * 1.496e8 / (v_T * 24 * (60**2))
 
     star_mag = mean_function(t, M, d_L, d_S, v_T, u_min, t_0)
     planet_mag = mean_function(t, M_pnew, d_L, d_S, v_T, u_min, t_0=t_0p)
     return star_mag + planet_mag - 1
 
-def mean_function_theta(t,theta, t_0=0):
-    '''t is time in units of days
+
+def mean_function_theta(t, theta, t_0=0):
+    """t is time in units of days
     Theta is a tuple of all parameters, in the following order:
     d_L: Distance to source, units of parsecs
     d_S: Distance to lens, units of parsecs
     v_M_ratio: Ratio between transverse velocity of lens and square root of the lens mass. Units of km s^-1 M_sun^-1/2
     The two variables are degenerate so can't be individually fitted, hence the need for the ratio
     u_min: Max magnification of object, unitless
-    t_0 is a variable we will not be fitting over, set it at zero by default'''
+    t_0 is a variable we will not be fitting over, set it at zero by default"""
 
-    #Adjusting to new units and unpacking theta
-    tnew = t*24*(60**2)
-    t_E = theta[0]*24*(60**2)
-    t_0new = t_0*24*(60**2)
+    # Adjusting to new units and unpacking theta
+    tnew = t * 24 * (60**2)
+    t_E = theta[0] * 24 * (60**2)
+    t_0new = t_0 * 24 * (60**2)
     u_min = theta[1]
 
-    us = np.sqrt(u_min**2 + ((tnew-t_0new)/t_E)**2)
+    us = np.sqrt(u_min**2 + ((tnew - t_0new) / t_E) ** 2)
     return get_mag(us)
 
-def noisy_data_calc(low,upper,theta,noise,number,t_0=0):
-    '''Generates a noisy lightcurve specified using the given parameters. Returns randomly selected t values and
+
+def noisy_data_calc(low, upper, theta, noise, number, t_0=0):
+    """Generates a noisy lightcurve specified using the given parameters. Returns randomly selected t values and
     their corresponding magnification.
     low: Lower time bound of the dataset, in units of days. Must be negative
     upper: Upper time bound of the dataset, in units of days. Must be positive
     theta: Parameters of the lightcurve model - d_L, D_S, v_M_ratio, u_min
     noise: Standard deviation of the gaussian distribution from which noise is sampled
     number: Number of samples to be selected.
-    t_0: Peak of lightcurve. Default 0'''
+    t_0: Peak of lightcurve. Default 0"""
 
-    ts = np.random.uniform(low,upper,number)
-    mags = mean_function_theta(ts,theta,t_0) + np.random.normal(0,noise,number)
+    ts = np.random.uniform(low, upper, number)
+    mags = mean_function_theta(ts, theta, t_0) + np.random.normal(0, noise, number)
     return ts, mags
 
 
-
-
-
-
 # ------------------also include some functional codes here (apart from the definition of lensmodel)------------------
+
 
 def read_and_convert(file_name, I_0, plot=False):
     """
@@ -148,7 +150,7 @@ def plot_final_params(observed_times, magnifications, best_parameters):
     mags = mean_function_theta(times, theta, best_parameters[1])
 
     # Plot prediction with the observed data
-    plt.plot(times, mags, color='blue')
-    plt.scatter(observed_times, magnifications, color='red')
-    plt.savefig(f'BO_plot/final_params{theta}.png', dpi=300)
+    plt.plot(times, mags, color="blue")
+    plt.scatter(observed_times, magnifications, color="red")
+    plt.savefig(f"BO_plot/final_params{theta}.png", dpi=300)
     plt.show()
